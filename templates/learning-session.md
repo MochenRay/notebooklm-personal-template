@@ -16,16 +16,18 @@
 - Notebook ID：
 - Notebook title：
 - Source IDs：
+- Primary source ID：
+- Source anomaly / cleanup candidate：
 - 状态：
 
 ## Studio Artifacts
 
 生成命令：
 
-- [ ] `nlm report create <notebook_id> --format "Study Guide" --confirm`
-- [ ] `nlm quiz create <notebook_id> --count 10 --difficulty 3 --confirm`
-- [ ] `nlm flashcards create <notebook_id> --difficulty hard --confirm`
-- [ ] `nlm mindmap create <notebook_id> --confirm`
+- [ ] `nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <primary_source_id> --confirm`
+- [ ] `nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <primary_source_id> --confirm`
+- [ ] `nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <primary_source_id> --confirm`
+- [ ] `nlm mindmap create --profile learning <notebook_id> --title "<short title>" --source-ids <primary_source_id> --confirm`
 
 状态与下载：
 

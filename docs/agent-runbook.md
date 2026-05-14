@@ -41,6 +41,7 @@
    ```bash
    nlm login --profile learning
    ```
+5. 若本机已有 `~/.agents/skills/notebooklm-pipeline/SKILL.md`，新对话可直接用该 skill 执行本 runbook；本文件仍是项目内的正式流程说明。
 
 ## 默认策略
 
@@ -89,26 +90,33 @@ MVP 阶段一条 source 一个 Notebook，默认新建 NotebookLM notebook。若
 通过 CLI：
 
 ```bash
-nlm source add <notebook_id> --url "<URL>"
+nlm source add --profile learning <notebook_id> --url "<URL>" --wait --wait-timeout 900
 ```
 
-等待 source 可查询。失败时写入 `notes/process-log.md`。
+等待 source 可查询，并把返回的 source id 写入 `source_ids`。若 notebook 只有一个 ready source，它就是 `primary_source_id`。
+
+异常处理：
+
+- 若 YouTube-specific 添加方式或其他尝试返回 `Error: Could not add url source.`，先用 `nlm source list --profile learning <notebook_id>` 检查远端实际状态，再用 generic `--url` fallback。
+- 若失败尝试留下额外 source stub，不删除；在 `source.yaml` 记录 `source_note`、`source_ids`、`primary_source_id` 与 cleanup candidate。
+- 后续 query 与 artifacts 生成必须显式使用 `--source-ids <primary_source_id>`，避免额外 source 污染结果。
+- 删除 NotebookLM source/notebook 是不可逆动作；未获用户明确确认前禁止删除。
 
 ### 4. 生成并下载正式 artifacts
 
 source ready 后，默认生成以下 NotebookLM Studio artifacts：
 
 ```bash
-nlm report create <notebook_id> --format "Study Guide" --confirm
-nlm quiz create <notebook_id> --count 10 --difficulty 3 --confirm
-nlm flashcards create <notebook_id> --difficulty hard --confirm
-nlm mindmap create <notebook_id> --confirm
+nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <primary_source_id> --confirm
+nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <primary_source_id> --confirm
+nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <primary_source_id> --confirm
+nlm mindmap create --profile learning <notebook_id> --title "<short title>" --source-ids <primary_source_id> --confirm
 ```
 
 随后查询 artifact 状态并记录 artifact IDs：
 
 ```bash
-nlm studio status <notebook_id> --json
+nlm studio status --profile learning <notebook_id> --json
 ```
 
 当 artifact ready 后下载到本地 vault：
@@ -143,6 +151,8 @@ notebooklm/report.md
 notebooklm/topology.md
 notes/questions.md
 ```
+
+若 `notebooklm/report.md` 或 `notebooklm/topology.md` 已由 agent 改写、结构化整理或补充推断，frontmatter 使用 `origin: notebooklm-with-agent-edit`；只有未改写原始导出才使用 `origin: notebooklm`。
 
 ### 6. 写 synthesis
 

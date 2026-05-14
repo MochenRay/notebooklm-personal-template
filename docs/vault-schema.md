@@ -86,6 +86,8 @@ notebooklm:
   notebook_id: ""
   notebook_title: ""
   source_ids: []
+  primary_source_id: ""
+  source_note: ""
   created_by: nlm
   profile: learning
   artifacts:
@@ -132,6 +134,7 @@ rights:
   public_url: true
   transcript_publication_allowed: false
   quote_policy: short_quotes_only
+  raw_transcript_saved: false
 
 status:
   stage: captured
@@ -204,6 +207,19 @@ notebook_id: ""
 ---
 ```
 
+`origin: notebooklm` 只用于未改写的 NotebookLM 原始导出。若 agent 对 NotebookLM query 结果做了结构化整理、删改或补充推断，使用：
+
+```markdown
+---
+origin: notebooklm-with-agent-edit
+edited: true
+generated_at: "2026-05-14"
+notebook_id: ""
+source_id: ""
+conversation_id: ""
+---
+```
+
 若内容是 agent 综合，而非 NotebookLM 原文输出：
 
 ```markdown
@@ -219,12 +235,14 @@ based_on:
 
 `notebooklm/artifacts/` 保存正式 NotebookLM Studio artifacts 的下载结果。默认生成并下载：
 
-- report：`nlm report create <notebook_id> --format "Study Guide" --confirm`，下载为 `report-study-guide.md`。
-- quiz：`nlm quiz create <notebook_id> --count 10 --difficulty 3 --confirm`，下载 `json`、`markdown`、`html` 三种格式。
-- flashcards：`nlm flashcards create <notebook_id> --difficulty hard --confirm`，下载 `json`、`markdown`、`html` 三种格式。
-- mind map：`nlm mindmap create <notebook_id> --confirm`，用 `nlm download mind-map` 下载为 `mindmap.json`。
+- report：`nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <primary_source_id> --confirm`，下载为 `report-study-guide.md`。
+- quiz：`nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <primary_source_id> --confirm`，下载 `json`、`markdown`、`html` 三种格式。
+- flashcards：`nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <primary_source_id> --confirm`，下载 `json`、`markdown`、`html` 三种格式。
+- mind map：`nlm mindmap create --profile learning <notebook_id> --title "<short title>" --source-ids <primary_source_id> --confirm`，用 `nlm download mind-map` 下载为 `mindmap.json`。
 
 `artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、downloaded_paths、generated_at、downloaded_at。若某项失败，保留失败状态与错误摘要。
+
+若 source 添加过程中出现失败后远端残留，`source_ids` 保留远端实际 source 清单，`primary_source_id` 指向后续 query 与 artifacts 使用的 ready source，`source_note` 说明失败命令、fallback、额外 source cleanup candidate 与未删除原因。删除 source/notebook 是不可逆操作，必须等用户明确确认。
 
 ## `notes/`
 
@@ -284,6 +302,9 @@ notebooks:
     title: "2026-05 - AI agent memory"
     profile: learning
     status: active
+    source_ids:
+      - ""
+    primary_source_id: ""
     topics:
       proposed:
         - ai-agents

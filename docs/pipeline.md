@@ -89,14 +89,17 @@ NotebookLM notebook id 写入 `source.yaml`，不要只保存在 CLI context。
 示例：
 
 ```bash
-nlm notebook create "2026-05 - <topic>"
-nlm source add <notebook_id> --url "<URL>"
+nlm notebook create --profile learning "2026-05 - <topic>"
+nlm source add --profile learning <notebook_id> --url "<URL>" --wait --wait-timeout 900
 ```
 
 若 source 处理失败：
 
 - 记录错误到 `notes/process-log.md`。
 - 对 YouTube，检查是否无 captions、地区限制、私有视频或格式不支持。
+- 可用 generic `--url` fallback；若 YouTube-specific 添加尝试返回 `Error: Could not add url source.`，先 `nlm source list --profile learning <notebook_id>` 检查是否留下远端 source stub。
+- 若失败尝试留下额外 source，不删除；记录为 cleanup candidate，等待用户明确确认。
+- 若存在多个 source，必须在 `source.yaml` 写 `primary_source_id`，后续 query 与 Studio artifact 生成都用 `--source-ids <primary_source_id>` 显式限定。
 - 可建议使用 transcript MCP 或手动导出 transcript。
 - 不要把失败误写成已完成。
 
@@ -107,16 +110,16 @@ nlm source add <notebook_id> --url "<URL>"
 默认生成：
 
 ```bash
-nlm report create <notebook_id> --format "Study Guide" --confirm
-nlm quiz create <notebook_id> --count 10 --difficulty 3 --confirm
-nlm flashcards create <notebook_id> --difficulty hard --confirm
-nlm mindmap create <notebook_id> --confirm
+nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <primary_source_id> --confirm
+nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <primary_source_id> --confirm
+nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <primary_source_id> --confirm
+nlm mindmap create --profile learning <notebook_id> --title "<short title>" --source-ids <primary_source_id> --confirm
 ```
 
 随后查询状态：
 
 ```bash
-nlm studio status <notebook_id> --json
+nlm studio status --profile learning <notebook_id> --json
 ```
 
 下载到本地 vault：
@@ -156,6 +159,8 @@ notebooklm/artifacts/
 ```
 
 `notebooklm/report.md`、`topology.md`、`study-guide.md` 可以来自 NotebookLM query 后的结构化整理；`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifact 下载结果。
+
+若这些文件包含 agent 改写、结构化整理或推断，frontmatter 使用 `origin: notebooklm-with-agent-edit`；只有未改写的 NotebookLM 原始导出才使用 `origin: notebooklm`。
 
 ## 阶段 6：本地二次消化
 
@@ -213,6 +218,7 @@ status:
 每次处理结束，更新：
 
 - `source.yaml` 的状态。
+- `source_ids`、`primary_source_id` 与任何 cleanup candidate。
 - `notes/process-log.md`。
 - `notebooklm/artifacts/` 的下载清单。
 - `vault/notebooklm/notebooks.yaml`。

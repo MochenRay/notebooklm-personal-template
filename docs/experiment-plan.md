@@ -54,7 +54,7 @@
 | 1. 工具与仓库接入 | 安装并验证 `notebooklm-mcp-cli`、`nlm`、Git 边界、Codex/Gemini 接入 | 已完成：CLI/Codex/Git 已验证，Gemini 按需 |
 | 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 已完成：实跑 4 个样本 |
 | 3. Topic 聚合验证 | 验证 agent topic 建议、默认批准展示、跨月聚合是否可用 | MVP 已通过：多样本 topic 复用成立 |
-| 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 可开始：需先冻结 runbook 与异常处理 |
+| 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 已完成：runbook/fallback 已冻结，skill 已安装 |
 | 5. 发布投影 | 在明确发布指令下，验证个人网站知识区与社媒草稿生成 | 未开始 |
 | 6. OpenClaw / Telegram 入口 | 探索 Telegram 发 YouTube URL 后由 OpenClaw 触发 NotebookLM Pipeline | 未来候选 |
 
@@ -234,7 +234,34 @@
 - 新对话只需说“用 NotebookLM Pipeline 处理这个 YouTube URL”。
 - Codex、Gemini、Claude 都能按同一规则执行。
 
-状态：可开始。建议先把当前 runbook、schema、样本 4 fallback 规则和样本 1 schema backfill 结果冻结，再抽为 `~/.agents/skills/notebooklm-pipeline/SKILL.md`。
+当前验证记录（2026-05-14）：
+
+- 已冻结当前 runbook、schema、样本 4 source fallback 规则与样本 1 schema backfill 结果。
+- `docs/agent-runbook.md`、`docs/pipeline.md`、`docs/vault-schema.md` 已补齐：
+  - `primary_source_id`
+  - `source_note`
+  - generic `--url` fallback
+  - `--source-ids <primary_source_id>` artifact/query 约束
+  - `origin: notebooklm-with-agent-edit` provenance 规则
+  - 远端额外 source cleanup candidate 不自动删除的不可逆边界
+- 已创建全局 skill：
+  - `~/.agents/skills/notebooklm-pipeline/SKILL.md`
+- 已完成 skill 验收：
+  - `uv run --with pyyaml python .../quick_validate.py ~/.agents/skills/notebooklm-pipeline` 通过。
+  - `~/.claude/skills/notebooklm-pipeline` 已同步为指向 `~/.agents/skills/notebooklm-pipeline` 的 mirror。
+  - `npx --yes skills ls -g --json` 可发现 `notebooklm-pipeline`。
+- `notebooklm-pipeline` 与 `nlm-skill` 分工已明确：
+  - `nlm-skill` 是 NotebookLM CLI/MCP 工具手册。
+  - `notebooklm-pipeline` 是本项目学习流水线入口。
+- fresh-session smoke 已通过：
+  - Session：`vault/sessions/2026/05/im-begging-you-to-start-writing-essays-even-if-you-hate-writing/`
+  - Notebook：`af467a2e-25fc-4505-9c22-926a046addac`
+  - Source：`e39d8302-9f14-41e9-8a70-0e792907aecf`
+  - 远端 source count 为 1，无 cleanup candidate。
+  - report、quiz、flashcards、mind map 均 completed，且本地 artifact 文件存在、非空、JSON/YAML 可解析。
+  - 已修正该 session 的 `language: "en"`，并把经 agent 整理的 `report.md` / `topology.md` 标为 `origin: notebooklm-with-agent-edit`。
+
+状态：已完成。skill 入口已通过新 YouTube 样本验证。
 
 ## 阶段 5：发布投影
 
@@ -290,7 +317,7 @@ Telegram message with YouTube URL
 
 ## 当前下一步
 
-最小下一步不再是继续跑样本。现在有两个收口选择：
+最小下一步不再是继续跑样本，也不应默认删除远端残留。当前收口选择：
 
 1. 若要保持远端 notebook 干净，先由用户确认是否删除样本 4 的额外 source `17a040c4-ec4f-4877-85c7-6daef383bd09`。
-2. 若不急于清理远端残留，直接进入阶段 4：冻结 runbook 与异常处理，再抽 `notebooklm-pipeline` skill。
+2. 若要继续产品化，再进入阶段 5 发布投影；但发布仍需明确指令，不并入默认 NotebookLM Pipeline。
