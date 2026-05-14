@@ -52,9 +52,9 @@
 | --- | --- | --- |
 | 0. 概念收敛 | 明确 truth layer、CLI-first、topic 漂移层、runbook-first | 已完成 |
 | 1. 工具与仓库接入 | 安装并验证 `notebooklm-mcp-cli`、`nlm`、Git 边界、Codex/Gemini 接入 | 已完成：CLI/Codex/Git 已验证，Gemini 按需 |
-| 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 进行中：样本 1 已完成 |
-| 3. Topic 聚合验证 | 验证 agent topic 建议、默认批准展示、跨月聚合是否可用 | 进行中：样本 1 topics 已写入 approved |
-| 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 未开始 |
+| 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 已完成：实跑 4 个样本 |
+| 3. Topic 聚合验证 | 验证 agent topic 建议、默认批准展示、跨月聚合是否可用 | MVP 已通过：多样本 topic 复用成立 |
+| 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 可开始：需先冻结 runbook 与异常处理 |
 | 5. 发布投影 | 在明确发布指令下，验证个人网站知识区与社媒草稿生成 | 未开始 |
 | 6. OpenClaw / Telegram 入口 | 探索 Telegram 发 YouTube URL 后由 OpenClaw 触发 NotebookLM Pipeline | 未来候选 |
 
@@ -147,18 +147,39 @@
 - 本地文件是否足以让 Codex/Gemini 后续继续理解？
 - 单 source 单 notebook 是否造成过多远端 notebook；若造成，作为后续聚合功能处理。
 
-当前验证记录（2026-05-13 PDT）：
+当前验证记录（2026-05-14）：
 
-- 样本 1 已完成：`How To Completely Reinvent Yourself In 6-12 Months`（Dan Koe）。
-- 本地 session：`vault/sessions/2026/05/how-to-completely-reinvent-yourself-6-12-months/`。
-- NotebookLM notebook：`dcada0f3-6416-42b7-9281-eda9158e15ef`。
-- Source：`86fdbc4c-feca-4785-9660-f2ba8dcb7778`，type=`youtube`，status=`ready`。
-- 已产出 `source.yaml`、`notebooklm/report.md`、`notebooklm/topology.md`、`notebooklm/study-guide.md`、`notes/questions.md`、`notes/debate.md`、`synthesis.md`。
-- 已补跑正式 NotebookLM Studio artifacts 并下载到 `notebooklm/artifacts/`：report、quiz、flashcards、mind map。
-- 用户明确要求不发布，未生成 `publish/website.md` 或公开投影。
-- Topics 已写入 `approved` 与 `vault/topics/<topic>/index.md`；当前规则改为后续样本默认批准并展示，用户有异议再修订。
+- 样本 1 已完成并补齐最新 schema：`How To Completely Reinvent Yourself In 6-12 Months`（Dan Koe）。
+  - Session：`vault/sessions/2026/05/how-to-completely-reinvent-yourself-6-12-months/`
+  - Notebook：`dcada0f3-6416-42b7-9281-eda9158e15ef`
+  - Source：`86fdbc4c-feca-4785-9660-f2ba8dcb7778`
+  - 2026-05-14 已把早期 list-style `artifacts` schema 迁到当前 keyed schema，并补齐 `report-study-guide.md`、`quiz.html`、`flashcards.html`、`mindmap.json`、`artifact-status.json`。
+- 样本 2 已完成：`How To Build A $1M One-Person Business Faster With AI`（Dan Koe）。
+  - Session：`vault/sessions/2026/05/how-to-build-a-1m-one-person-business-faster-with-ai/`
+  - Notebook：`f7aca118-781c-46e8-8487-1097e7bb11e3`
+  - Source：`968e03e4-23dc-4c2f-9de5-c300f098321a`
+- 样本 3 已完成：`翁家翌：OpenAI，GPT，强化学习，Infra，后训练，天授，tuixue，开源，CMU，清华｜WhynotTV Podcast #4`。
+  - Session：`vault/sessions/2026/05/weng-jiayi-openai-gpt-rl-infra-post-training/`
+  - Notebook：`1d9fc026-0af5-485a-b599-79c3f69dbd34`
+  - Source：`890ddf39-099b-48b6-ac4c-516c4ada9f51`
+- 样本 4 已完成：`Yao Shunyu: Let Me Go a Little Crazy! Training Models at Anthropic & Gemini, Heroism Is Over`。
+  - Session：`vault/sessions/2026/05/yao-shunyu-training-models-anthropic-gemini-heroism-is-over/`
+  - Notebook：`521435c4-4394-4890-9348-5bec06c2098a`
+  - Primary source：`4982e0c5-3010-4195-b908-21b9c7812bd9`
+  - Extra source：`17a040c4-ec4f-4877-85c7-6daef383bd09`
+- 4 个样本均已产出 `source.yaml`、`notes/process-log.md`、`notebooklm/report.md`、`notebooklm/topology.md`、`notebooklm/artifacts/`、`notes/questions.md`、`notes/debate.md`、`notes/my-notes.md`、`synthesis.md`。
+- 4 个样本均未生成 `publish/website.md` 或公开投影。
 
-状态：进行中。样本 1 完成，仍需继续样本 2、样本 3。
+样本 4 的具体情况：
+
+- 最初目标仍是一条 source 一个 notebook。
+- 第一次添加 source 用的是 `nlm source add ... --youtube <url>`。CLI 返回 `Error: Could not add url source.`，按失败处理。
+- 随后用 fallback：`nlm source add ... --url <url>`，成功创建 ready source `4982e0c5-3010-4195-b908-21b9c7812bd9`。
+- 后续 report、quiz、flashcards、mind map 都用 `--source-ids 4982e0c5-3010-4195-b908-21b9c7812bd9` 显式绑定 primary source，所以样本产物有效。
+- 远端检查发现第一次失败的 `--youtube` 尝试仍留下一个 URL 标题的额外 source：`17a040c4-ec4f-4877-85c7-6daef383bd09`。这不是本地 schema 错误，而是一次远端半成功残留。
+- 该额外 source 可以清理，但删除 NotebookLM source 是不可逆操作；未获用户明确确认前不删除。
+
+状态：已完成。三样本目标已满足，且实跑第 4 个样本暴露并验证了 source add 失败后的 fallback 与记录机制。
 
 ## 阶段 3：Topic 聚合验证
 
@@ -179,17 +200,16 @@
 - topic 不再等待用户逐项确认；默认批准，靠展示后的异议修订收敛。
 - agent 能发现“可能复用已有 topic / notebook”的情况并提出建议。
 
-当前验证记录（2026-05-13 PDT）：
+当前验证记录（2026-05-14）：
 
-- 样本 1 的 topics 已写入 approved：
-  - `personal-growth`
-  - `identity-reinvention`
-  - `behavior-change`
-  - `attention-environment-design`
-- 已写入 session `source.yaml`、`synthesis.md`、`vault/notebooklm/notebooks.yaml`。
-- 已建立 `vault/topics/<topic>/index.md` 的 approved 关联。
+- 4 个样本均已写入 `topics.proposed` 与 `topics.approved`。
+- 4 个样本均已更新 `vault/notebooklm/notebooks.yaml` 与 `vault/topics/<topic>/index.md`。
+- 已出现跨 session 复用：
+  - `ai-workflow-design` 关联 3 个 session。
+  - `frontier-ai-model-training`、`post-training-rl`、`agentic-coding`、`ai-research-organization` 均关联 2 个 session。
+- topic 作为漂移索引的路线成立：session 目录未随 topic 变化移动，跨样本聚合由 `topics/` 承担。
 
-状态：进行中。样本 1 topic 链路完成；后续样本按默认 approved + 展示机制验证跨 session 聚合。
+状态：MVP 已通过。后续若要判完全成熟，还需专门演练 topic 改名、合并、拆分与删除。
 
 ## 阶段 4：Skill 化决策
 
@@ -214,7 +234,7 @@
 - 新对话只需说“用 NotebookLM Pipeline 处理这个 YouTube URL”。
 - Codex、Gemini、Claude 都能按同一规则执行。
 
-状态：未开始。
+状态：可开始。建议先把当前 runbook、schema、样本 4 fallback 规则和样本 1 schema backfill 结果冻结，再抽为 `~/.agents/skills/notebooklm-pipeline/SKILL.md`。
 
 ## 阶段 5：发布投影
 
@@ -270,4 +290,7 @@ Telegram message with YouTube URL
 
 ## 当前下一步
 
-最小下一步是继续阶段 2 的样本 2 与样本 3，并观察默认 approved topics 是否能跨 session 复用。
+最小下一步不再是继续跑样本。现在有两个收口选择：
+
+1. 若要保持远端 notebook 干净，先由用户确认是否删除样本 4 的额外 source `17a040c4-ec4f-4877-85c7-6daef383bd09`。
+2. 若不急于清理远端残留，直接进入阶段 4：冻结 runbook 与异常处理，再抽 `notebooklm-pipeline` skill。
