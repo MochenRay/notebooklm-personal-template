@@ -189,6 +189,14 @@ topics:
 
 若已有 `vault/topics/<topic>/index.md`，标注“复用既有 topic”。默认把 proposed topic id 同步写入 `approved`，并更新 `vault/topics/<topic>/index.md` 的 approved 关联。
 
+更新 topic 索引时，必须做语义合并：
+
+- 先读旧 `index.md` 与本 session 的 `synthesis.md`。
+- `## 关联 sessions` 可追加新 session 路径。
+- `## 当前理解` 必须重写成跨 session 的完整论述，按概念关系组织共识、分歧、边界和可迁移原则。
+- 不要用“新 session 补充”“某某 session 进一步强调”“本 session 的核心范式”这类来源顺序作为正文结构。
+- 若新材料只是支持既有判断，合并到原观点；若与既有判断冲突，写入分歧或边界；若暂时无法整合，放入 `## 待合并 / 待拆分`，不要把未经消化的段落直接追加到 `## 当前理解`。
+
 处理结束前，必须展示已默认批准的 topics。用户若提出疑问、改名、合并、拆分或删除要求，再修订 `source.yaml`、`synthesis.md`、`vault/notebooklm/notebooks.yaml` 与对应 topic 索引。
 
 ### 8. 发布边界

@@ -200,6 +200,14 @@ topics:
 
 默认立即更新 `topics/<topic>/index.md` 的 approved 关联。MVP 每次处理结束都必须展示默认 approved topics；用户提出疑问、改名、合并、拆分或删除要求时，再回写修订结果。
 
+topic index 更新采用 semantic merge，而不是 append-only session log：
+
+- `## 关联 sessions` 负责保留来源路径与 approved/proposed 状态。
+- `## 当前理解` 必须整合旧观点与新 session，形成有层次的完整论述。
+- 多个 session 共同认可的观点合并写；互相冲突或重心不同的地方写成边界、分歧或适用条件。
+- 不要让每个 session 对应一个正文段落，也不要用“新 session 补充了另一条判断”这类表述组织正文。
+- 暂时无法整合的材料进入 `## 待合并 / 待拆分`，等待后续专门整理。
+
 ## 阶段 8：发布边界
 
 默认不生成：

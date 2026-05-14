@@ -53,7 +53,7 @@
 | 0. 概念收敛 | 明确 truth layer、CLI-first、topic 漂移层、runbook-first | 已完成 |
 | 1. 工具与仓库接入 | 安装并验证 `notebooklm-mcp-cli`、`nlm`、Git 边界、Codex/Gemini 接入 | 已完成：CLI/Codex/Git 已验证，Gemini 按需 |
 | 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 已完成：实跑 4 个样本 |
-| 3. Topic 聚合验证 | 验证 agent topic 建议、默认批准展示、跨月聚合是否可用 | MVP 已通过：多样本 topic 复用成立 |
+| 3. Topic 聚合验证 | 验证 agent topic 建议、默认批准展示、跨月聚合是否可用 | 基础路径已通过；topic 论述合并契约已补强 |
 | 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 已完成：runbook/fallback 已冻结，skill 已安装 |
 | 5. 发布投影 | 在明确发布指令下，验证个人网站知识区与社媒草稿生成 | 未开始 |
 | 6. OpenClaw / Telegram 入口 | 探索 Telegram 发 YouTube URL 后由 OpenClaw 触发 NotebookLM Pipeline | 未来候选 |
@@ -202,14 +202,16 @@
 
 当前验证记录（2026-05-14）：
 
-- 4 个样本均已写入 `topics.proposed` 与 `topics.approved`。
-- 4 个样本均已更新 `vault/notebooklm/notebooks.yaml` 与 `vault/topics/<topic>/index.md`。
+- 早期 4 个 MVP 样本均已写入 `topics.proposed` 与 `topics.approved`。
+- 早期 4 个 MVP 样本均已更新 `vault/notebooklm/notebooks.yaml` 与 `vault/topics/<topic>/index.md`。
 - 已出现跨 session 复用：
-  - `ai-workflow-design` 关联 3 个 session。
+  - `ai-workflow-design` 已关联 5 个 session。
   - `frontier-ai-model-training`、`post-training-rl`、`agentic-coding`、`ai-research-organization` 均关联 2 个 session。
 - topic 作为漂移索引的路线成立：session 目录未随 topic 变化移动，跨样本聚合由 `topics/` 承担。
+- 2026-05-14 复查发现：早期 `topics/<topic>/index.md` 容易把 `## 当前理解` 写成按 session 追加的记录，例如“新 session 补充”“某某访谈进一步强调”。这不适合作为长期 topic 浏览层。
+- 已补强 contract：topic index 的 `## 当前理解` 必须做 semantic merge，按核心命题、共识、分歧、边界和可迁移原则组织；`## 关联 sessions` 只保留溯源，不承担正文论述。
 
-状态：MVP 已通过。后续若要判完全成熟，还需专门演练 topic 改名、合并、拆分与删除。
+状态：基础路径已通过；topic 论述质量已发现并修正一处 contract 缺口。后续若要判完全成熟，还需专门演练 topic 改名、合并、拆分、删除，以及多 session 语义重写的稳定性。
 
 ## 阶段 4：Skill 化决策
 
