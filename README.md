@@ -68,6 +68,23 @@ notebooklm-personal/
 
 若 agent-facing 文档改变了目标、阶段、流程、工具取舍或输出结构，必须同步更新 `docs/experiment-plan.md`，让它保持为最新的人类汇报页。
 
+## Skill 入口
+
+当前已抽出全局 skill：
+
+```text
+~/.agents/skills/notebooklm-pipeline/SKILL.md
+```
+
+新对话可直接说：
+
+```text
+用 NotebookLM Pipeline 处理这个视频：
+<YouTube URL>
+```
+
+agent 应优先使用 `notebooklm-pipeline` skill；本仓 `docs/agent-runbook.md`、`docs/pipeline.md`、`docs/vault-schema.md` 仍是项目流程的正式文档来源。
+
 ## Truth Layers
 
 ```text
@@ -105,4 +122,4 @@ personal website / social media
 
 ## 下一步
 
-先不要直接抽全局 skill。先按 `docs/agent-runbook.md` 跑 3 个样本。若流程稳定，再把 runbook 提升为 `~/.agents/skills/notebooklm-pipeline/SKILL.md`，供 Codex、Gemini、Claude 共用。
+阶段 4 已完成并通过 fresh-session smoke。下一步若继续产品化，应进入阶段 5 发布投影；但发布仍需明确指令，不并入默认 NotebookLM Pipeline。

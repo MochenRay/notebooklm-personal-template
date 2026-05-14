@@ -92,7 +92,10 @@ MVP 不默认引入。
 
 ## Skill 策略
 
-先写 runbook，后抽 skill。
+先写 runbook，后抽 skill。当前判断：阶段 4 已可执行，`notebooklm-pipeline` 与通用 `nlm-skill` 分工如下：
+
+- `nlm-skill`：NotebookLM CLI/MCP 的通用工具手册。
+- `notebooklm-pipeline`：本项目的个人学习流水线，负责 `YouTube URL -> NotebookLM -> local vault -> synthesis -> topics`。
 
 判断是否该抽 `notebooklm-pipeline` skill：
 
@@ -102,7 +105,7 @@ MVP 不默认引入。
 - topic 建议、默认批准展示与异议修订机制跑通。
 - 输出文件结构没有大改。
 
-若成立，安装到：
+条件已成立，安装到：
 
 ```text
 ~/.agents/skills/notebooklm-pipeline/SKILL.md
