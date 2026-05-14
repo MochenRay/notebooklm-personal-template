@@ -94,9 +94,9 @@
 - 配置 Codex 可调用 `nlm`。
 - 跑 `nlm doctor` 与 `nlm notebook list`。
 
-待做：
+按需扩展：
 
-- 如需 Gemini，也配置 Gemini 可调用 `nlm`。
+- 如需 Gemini，再配置 Gemini 可调用 `nlm`。
 
 验收：
 
@@ -116,7 +116,7 @@
 - `.gitignore` 已排除私人 vault、raw transcript、媒体 artifact、NotebookLM/browser 凭证与本地运行态。
 - GitHub private repo 已创建为 `MochenRay/notebooklm-personal`，本地 `main` 已推送到 `origin`。
 
-状态：已完成。Gemini 接入为按需项，未纳入第一验收阻塞。
+状态：已完成。Gemini 接入为按需扩展，未纳入第一验收阻塞。
 
 ## 阶段 2：三样本 MVP
 
