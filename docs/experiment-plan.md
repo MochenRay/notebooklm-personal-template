@@ -52,8 +52,8 @@
 | --- | --- | --- |
 | 0. 概念收敛 | 明确 truth layer、CLI-first、topic 漂移层、runbook-first | 已完成 |
 | 1. 工具与仓库接入 | 安装并验证 `notebooklm-mcp-cli`、`nlm`、Git 边界、Codex/Gemini 接入 | 已完成：CLI/Codex/Git 已验证，Gemini 按需 |
-| 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 未开始 |
-| 3. Topic 聚合验证 | 验证 agent topic 建议、用户确认、跨月聚合是否可用 | 未开始 |
+| 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 进行中：样本 1 已完成 |
+| 3. Topic 聚合验证 | 验证 agent topic 建议、用户确认、跨月聚合是否可用 | 进行中：样本 1 topics 已确认 |
 | 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 未开始 |
 | 5. 发布投影 | 在明确发布指令下，验证个人网站知识区与社媒草稿生成 | 未开始 |
 | 6. OpenClaw / Telegram 入口 | 探索 Telegram 发 YouTube URL 后由 OpenClaw 触发 NotebookLM Pipeline | 未来候选 |
@@ -147,7 +147,18 @@
 - 本地文件是否足以让 Codex/Gemini 后续继续理解？
 - 单 source 单 notebook 是否造成过多远端 notebook；若造成，作为后续聚合功能处理。
 
-状态：未开始。
+当前验证记录（2026-05-13 PDT）：
+
+- 样本 1 已完成：`How To Completely Reinvent Yourself In 6-12 Months`（Dan Koe）。
+- 本地 session：`vault/sessions/2026/05/how-to-completely-reinvent-yourself-6-12-months/`。
+- NotebookLM notebook：`dcada0f3-6416-42b7-9281-eda9158e15ef`。
+- Source：`86fdbc4c-feca-4785-9660-f2ba8dcb7778`，type=`youtube`，status=`ready`。
+- 已产出 `source.yaml`、`notebooklm/report.md`、`notebooklm/topology.md`、`notebooklm/study-guide.md`、`notes/questions.md`、`notes/debate.md`、`synthesis.md`。
+- 已补跑正式 NotebookLM Studio artifacts 并下载到 `notebooklm/artifacts/`：report、quiz、flashcards、mind map。
+- 用户明确要求不发布，未生成 `publish/website.md` 或公开投影。
+- Topics 已由用户批准，并写入 `approved` 与 `vault/topics/<topic>/index.md`。
+
+状态：进行中。样本 1 完成，仍需继续样本 2、样本 3。
 
 ## 阶段 3：Topic 聚合验证
 
@@ -167,7 +178,17 @@
 - topic 错了可以改名、合并、拆分，不需要搬 session 目录。
 - agent 能发现“可能复用已有 topic / notebook”的情况并提出建议。
 
-状态：未开始。
+当前验证记录（2026-05-13 PDT）：
+
+- 样本 1 的 proposed topics 已由用户批准：
+  - `personal-growth`
+  - `identity-reinvention`
+  - `behavior-change`
+  - `attention-environment-design`
+- 已写入 session `source.yaml`、`synthesis.md`、`vault/notebooklm/notebooks.yaml`。
+- 已建立 `vault/topics/<topic>/index.md` 的 approved 关联。
+
+状态：进行中。样本 1 topic 确认链路完成；仍需用样本 2、样本 3 验证跨 session 聚合。
 
 ## 阶段 4：Skill 化决策
 
@@ -248,4 +269,4 @@ Telegram message with YouTube URL
 
 ## 当前下一步
 
-最小下一步是用一个 YouTube 视频启动阶段 2 第一个样本，验证 `URL -> NotebookLM -> 本地知识卡片` 的完整链路。
+最小下一步是继续阶段 2 的样本 2 与样本 3，并观察已 approved topics 是否能跨 session 复用。
