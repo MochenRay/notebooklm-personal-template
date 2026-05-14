@@ -7,8 +7,11 @@ confidence: ""
 source_url: ""
 notebook_id: ""
 topics:
-  proposed: []
-  approved: []
+  proposed:
+    - "<topic-id>"
+  # 默认填入 proposed 的 topic id；用户提出异议后再修订。
+  approved:
+    - "<topic-id>"
 publish_candidate: false
 ---
 
@@ -42,7 +45,7 @@ publish_candidate: false
 
 ### Approved
 
-- 待确认
+- 默认同 Proposed；如用户提出异议，改写 approved 与 topic 索引。
 
 ## 未解决问题
 
@@ -53,4 +56,3 @@ publish_candidate: false
 - Publish candidate：
 - 理由：
 - 风险：
-
