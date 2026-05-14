@@ -37,6 +37,12 @@
 
 若你没有想清楚主题、目标、发布形式，agent 应自行推断并提出建议，而不是要求你先完成分类。
 
+## 未来入口候选
+
+后续可探索 `Telegram -> OpenClaw -> NotebookLM Pipeline` 的异步入口：在 Telegram 里发送一个 YouTube URL 给 OpenClaw，由 OpenClaw 触发本项目默认流程，完成 NotebookLM source 导入、本地 vault 沉淀与状态回传。
+
+此能力不进入第一阶段 MVP；实现前需先确认 Telegram bot 权限、OpenClaw job 边界、失败回报、幂等策略、凭证保存位置与隐私边界。
+
 ## 项目结构
 
 ```text

@@ -28,6 +28,7 @@
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
 - 项目准备 Git 化与开源；私人 truth vault、raw 原始材料、媒体 artifact、凭证默认不进 Git。
 - 先用 runbook 跑通 3 个样本，再决定是否抽成全局 skill。
+- 远期可探索 `Telegram -> OpenClaw -> NotebookLM Pipeline` 的异步入口，但不进入 MVP。
 
 ## 文档分工
 
@@ -53,6 +54,7 @@
 | 3. Topic 聚合验证 | 验证 agent topic 建议、用户确认、跨月聚合是否可用 | 未开始 |
 | 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 未开始 |
 | 5. 发布投影 | 在明确发布指令下，验证个人网站知识区与社媒草稿生成 | 未开始 |
+| 6. OpenClaw / Telegram 入口 | 探索 Telegram 发 YouTube URL 后由 OpenClaw 触发 NotebookLM Pipeline | 未来候选 |
 
 ## 阶段 0：概念收敛
 
@@ -210,17 +212,37 @@
 
 状态：未开始。
 
-## 当前下一步
+## 阶段 6：OpenClaw / Telegram 入口
 
-最小下一步是阶段 1：
+目标：探索一个异步入口，让用户在 Telegram 里发送 YouTube URL 给 OpenClaw，由 OpenClaw 触发本项目默认流程，完成 NotebookLM 处理、本地 vault 沉淀和状态回传。
 
-```bash
-uv tool install notebooklm-mcp-cli
-nlm login --profile learning
-nlm setup add codex
-nlm skill install agents
-nlm doctor
-nlm notebook list
+候选流程：
+
+```text
+Telegram message with YouTube URL
+  -> Telegram bot / webhook
+  -> OpenClaw job
+  -> NotebookLM Pipeline
+  -> local vault session
+  -> Telegram status/result reply
 ```
 
-完成后，用一个 YouTube 视频启动阶段 2 第一个样本。
+待确认：
+
+- Telegram bot 与 OpenClaw 的认证、权限和回调方式。
+- OpenClaw job 的幂等键、队列状态、失败重试和日志位置。
+- `nlm` profile、NotebookLM auth 与本地 vault 写入的运行边界。
+- Telegram 回复只回状态、摘要、文件路径还是可下载 artifact。
+- 私人 URL、账号、NotebookLM notebook id、raw transcript 与媒体 artifact 的隐私边界。
+
+边界：
+
+- 不进入第一阶段 MVP。
+- 不阻塞三样本验证、topic 聚合与 skill 化决策。
+- 不自动发布、不自动公开分享 NotebookLM notebook、不删除远端或本地内容。
+
+状态：未来候选。
+
+## 当前下一步
+
+最小下一步是用一个 YouTube 视频启动阶段 2 第一个样本，验证 `URL -> NotebookLM -> 本地知识卡片` 的完整链路。
