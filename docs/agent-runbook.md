@@ -51,7 +51,7 @@
 - 默认在 source ready 后立即生成正式 NotebookLM Studio artifacts，不需要用户额外唤起。
 - 默认下载 artifacts 到本地 `notebooklm/artifacts/`，再继续二次消化。
 - 默认只生成本地沉淀，不生成发布草稿。
-- 默认不删除、不公开分享、不邀请协作者、不发布社媒。
+- 默认不删除、不公开分享、不邀请协作者、不发布社媒；唯一例外是同一次运行中由失败 add-source 尝试留下、且 fallback 成功后可明确识别为非 primary 的 source 残留，此类残留视为已预授权自动清理。
 - 默认一条 source 一个 Notebook。
 - 默认 topic 由 agent 提议并直接写入 approved，处理结束时展示给用户；用户有疑问或觉得不对再修订。
 - 默认 `synthesis.md` 写成知识卡片，不写成普通观看笔记。
@@ -98,9 +98,15 @@ nlm source add --profile learning <notebook_id> --url "<URL>" --wait --wait-time
 异常处理：
 
 - 若 YouTube-specific 添加方式或其他尝试返回 `Error: Could not add url source.`，先用 `nlm source list --profile learning <notebook_id>` 检查远端实际状态，再用 generic `--url` fallback。
-- 若失败尝试留下额外 source stub，不删除；在 `source.yaml` 记录 `source_note`、`source_ids`、`primary_source_id` 与 cleanup candidate。
+- 若 fallback 成功后能明确识别失败尝试留下的额外 source stub，立即自动删除该 stub，不再询问用户，也不在最终回复中暴露为待确认事项：
+  ```bash
+  nlm source delete --profile learning <failed_source_id> --confirm
+  nlm source list --profile learning <notebook_id>
+  ```
+- 自动删除仅限同一次运行中由失败 add-source 尝试产生、且未被用作 `primary_source_id` 的残留 source。若 source 身份不确定、不是本轮失败尝试产生、或可能被用户/其它流程使用，不自动删除，改为记录异常并向用户说明风险。
+- 在 `source.yaml` 记录 `source_note`、清理后的 `source_ids`、`primary_source_id`、`cleanup.auto_deleted_failed_source_ids` 或 `cleanup.unresolved_source_ids`；在 `notes/process-log.md` 记录失败命令、fallback、delete 命令和删除后 `source list` 验证结果。
 - 后续 query 与 artifacts 生成必须显式使用 `--source-ids <primary_source_id>`，避免额外 source 污染结果。
-- 删除 NotebookLM source/notebook 是不可逆动作；未获用户明确确认前禁止删除。
+- 除上述失败残留自动清理外，删除 NotebookLM source/notebook 是不可逆动作；未获用户明确确认前禁止删除。
 
 ### 4. 生成并下载正式 artifacts
 
@@ -217,7 +223,7 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 
 - 不自动发布。
 - 不自动公开分享 NotebookLM notebook。
-- 不删除 notebook/source/artifact。
+- 不删除 notebook/source/artifact；同一次运行中失败 add-source 尝试留下的非 primary source 残留除外，按异常处理规则自动清理。
 - 不把完整 transcript 放进 publish。
 - 不把 agent 推断写成用户观点。
 - 不把 CLI context 当作唯一状态。

@@ -98,8 +98,14 @@ nlm source add --profile learning <notebook_id> --url "<URL>" --wait --wait-time
 - 记录错误到 `notes/process-log.md`。
 - 对 YouTube，检查是否无 captions、地区限制、私有视频或格式不支持。
 - 可用 generic `--url` fallback；若 YouTube-specific 添加尝试返回 `Error: Could not add url source.`，先 `nlm source list --profile learning <notebook_id>` 检查是否留下远端 source stub。
-- 若失败尝试留下额外 source，不删除；记录为 cleanup candidate，等待用户明确确认。
+- 若 fallback 成功后能明确识别失败尝试留下的额外 source，立即自动删除该失败残留，不等待用户确认，也不作为最终回复中的待确认事项暴露：
+  ```bash
+  nlm source delete --profile learning <failed_source_id> --confirm
+  nlm source list --profile learning <notebook_id>
+  ```
+- 自动删除只适用于同一次运行中由失败 add-source 尝试产生、且没有作为 `primary_source_id` 使用的 source。若 source 身份不确定、不是本轮失败尝试产生、或可能被用户/其它流程使用，不做自动删除，记录异常并向用户说明风险。
 - 若存在多个 source，必须在 `source.yaml` 写 `primary_source_id`，后续 query 与 Studio artifact 生成都用 `--source-ids <primary_source_id>` 显式限定。
+- `source.yaml` 与 `notes/process-log.md` 必须记录失败命令、fallback、自动删除命令、被删 source id、删除后 `source list` 验证结果，并让 `source_ids` 反映清理后的远端实际 source 清单。结构化记录优先写入 `cleanup.auto_deleted_failed_source_ids`；无法自动清理时写入 `cleanup.unresolved_source_ids` 与 `cleanup.cleanup_note`。
 - 可建议使用 transcript MCP 或手动导出 transcript。
 - 不要把失败误写成已完成。
 
@@ -218,7 +224,7 @@ status:
 每次处理结束，更新：
 
 - `source.yaml` 的状态。
-- `source_ids`、`primary_source_id` 与任何 cleanup candidate。
+- `source_ids`、`primary_source_id`、失败 add-source 残留的自动清理记录，或无法自动清理的异常原因。
 - `notes/process-log.md`。
 - `notebooklm/artifacts/` 的下载清单。
 - `vault/notebooklm/notebooks.yaml`。

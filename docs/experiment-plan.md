@@ -177,7 +177,7 @@
 - 随后用 fallback：`nlm source add ... --url <url>`，成功创建 ready source `4982e0c5-3010-4195-b908-21b9c7812bd9`。
 - 后续 report、quiz、flashcards、mind map 都用 `--source-ids 4982e0c5-3010-4195-b908-21b9c7812bd9` 显式绑定 primary source，所以样本产物有效。
 - 远端检查发现第一次失败的 `--youtube` 尝试仍留下一个 URL 标题的额外 source：`17a040c4-ec4f-4877-85c7-6daef383bd09`。这不是本地 schema 错误，而是一次远端半成功残留。
-- 该额外 source 可以清理，但删除 NotebookLM source 是不可逆操作；未获用户明确确认前不删除。
+- 2026-05-14 复盘后修订 runbook：以后同一次运行中若第一次 add-source 失败、fallback 成功，且能明确识别失败尝试留下的非 primary source，agent 应自动删除该残留，不再要求用户确认，也不在最终回复中暴露为待处理事项；其它 source/notebook 删除仍需明确确认。样本 4 的既有历史残留不被本次文档修订自动删除。
 
 状态：已完成。三样本目标已满足，且实跑第 4 个样本暴露并验证了 source add 失败后的 fallback 与记录机制。
 
@@ -240,10 +240,12 @@
 - `docs/agent-runbook.md`、`docs/pipeline.md`、`docs/vault-schema.md` 已补齐：
   - `primary_source_id`
   - `source_note`
+  - `cleanup.auto_deleted_failed_source_ids`
+  - `cleanup.unresolved_source_ids`
   - generic `--url` fallback
   - `--source-ids <primary_source_id>` artifact/query 约束
   - `origin: notebooklm-with-agent-edit` provenance 规则
-  - 远端额外 source cleanup candidate 不自动删除的不可逆边界
+  - 失败 add-source 残留 source 的自动清理规则，以及其它 source/notebook 删除仍需确认的边界
 - 已创建全局 skill：
   - `~/.agents/skills/notebooklm-pipeline/SKILL.md`
 - 已完成 skill 验收：
@@ -311,13 +313,13 @@ Telegram message with YouTube URL
 
 - 不进入第一阶段 MVP。
 - 不阻塞三样本验证、topic 聚合与 skill 化决策。
-- 不自动发布、不自动公开分享 NotebookLM notebook、不删除远端或本地内容。
+- 不自动发布、不自动公开分享 NotebookLM notebook、不删除远端或本地内容；同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别的非 primary source 残留，仍按 pipeline 规则自动清理。
 
 状态：未来候选。
 
 ## 当前下一步
 
-最小下一步不再是继续跑样本，也不应默认删除远端残留。当前收口选择：
+最小下一步不再是继续跑样本。当前收口选择：
 
-1. 若要保持远端 notebook 干净，先由用户确认是否删除样本 4 的额外 source `17a040c4-ec4f-4877-85c7-6daef383bd09`。
+1. 样本 4 的历史额外 source `17a040c4-ec4f-4877-85c7-6daef383bd09` 是否现在清理，单独按当前用户指令执行；新的 pipeline 运行已改为 fallback 成功后自动清理本轮失败残留。
 2. 若要继续产品化，再进入阶段 5 发布投影；但发布仍需明确指令，不并入默认 NotebookLM Pipeline。

@@ -17,7 +17,8 @@
 - Notebook title：
 - Source IDs：
 - Primary source ID：
-- Source anomaly / cleanup candidate：
+- Source anomaly / cleanup log：
+- Auto-deleted failed source IDs：
 - 状态：
 
 ## Studio Artifacts

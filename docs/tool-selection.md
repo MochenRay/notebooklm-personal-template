@@ -37,7 +37,7 @@ MCP server 可配置、可辅助，但不作为第一验收标准。第一阶段
 
 - 使用非官方内部 API，Google 可随时变更。
 - 需要管理 `nlm login`、profile、cookie 生命周期。
-- 删除、公开分享、邀请协作者等动作必须人工确认。
+- 删除、公开分享、邀请协作者等动作必须人工确认；同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别为非 primary 的 source 残留，是 NotebookLM Pipeline 的预授权自动清理例外。
 - 长任务需等待与轮询，不可假定即时完成。
 
 ## `teng-lin/notebooklm-py`

@@ -88,6 +88,10 @@ notebooklm:
   source_ids: []
   primary_source_id: ""
   source_note: ""
+  cleanup:
+    auto_deleted_failed_source_ids: []
+    unresolved_source_ids: []
+    cleanup_note: ""
   created_by: nlm
   profile: learning
   artifacts:
@@ -242,7 +246,7 @@ based_on:
 
 `artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、downloaded_paths、generated_at、downloaded_at。若某项失败，保留失败状态与错误摘要。
 
-若 source 添加过程中出现失败后远端残留，`source_ids` 保留远端实际 source 清单，`primary_source_id` 指向后续 query 与 artifacts 使用的 ready source，`source_note` 说明失败命令、fallback、额外 source cleanup candidate 与未删除原因。删除 source/notebook 是不可逆操作，必须等用户明确确认。
+若 source 添加过程中出现失败后远端残留，fallback 成功后应自动删除可明确识别的失败残留 source。`source_ids` 保留清理后的远端实际 source 清单，`primary_source_id` 指向后续 query 与 artifacts 使用的 ready source，`source_note` 说明失败命令、fallback、被自动删除的 failed source id、删除命令与删除后验证结果。结构化字段写入 `cleanup.auto_deleted_failed_source_ids`；无法自动清理时写入 `cleanup.unresolved_source_ids` 与 `cleanup.cleanup_note`，并说明未自动删除原因。只有无法确认身份、不是本轮失败尝试产生、或可能被用户/其它流程使用的 source 才保留为异常。删除其它 source/notebook 仍是不可逆操作，必须等用户明确确认。
 
 ## `notes/`
 
