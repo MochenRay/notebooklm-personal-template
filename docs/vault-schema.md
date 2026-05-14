@@ -35,6 +35,16 @@ vault/
             study-guide.md
             quiz.json
             flashcards.json
+            artifacts/
+              artifact-status.json
+              report-study-guide.md
+              quiz.json
+              quiz.md
+              quiz.html
+              flashcards.json
+              flashcards.md
+              flashcards.html
+              mindmap.json
           notes/
             process-log.md
             questions.md
@@ -78,6 +88,29 @@ notebooklm:
   source_ids: []
   created_by: nlm
   profile: learning
+  artifacts:
+    report:
+      id: ""
+      status: pending
+      path: notebooklm/artifacts/report-study-guide.md
+    quiz:
+      id: ""
+      status: pending
+      paths:
+        json: notebooklm/artifacts/quiz.json
+        markdown: notebooklm/artifacts/quiz.md
+        html: notebooklm/artifacts/quiz.html
+    flashcards:
+      id: ""
+      status: pending
+      paths:
+        json: notebooklm/artifacts/flashcards.json
+        markdown: notebooklm/artifacts/flashcards.md
+        html: notebooklm/artifacts/flashcards.html
+    mindmap:
+      id: ""
+      status: pending
+      path: notebooklm/artifacts/mindmap.json
 
 topics:
   proposed:
@@ -145,6 +178,15 @@ notebooklm-personal/
 - `quiz.json`
 - `flashcards.json`
 - `mindmap.json`
+- `artifacts/artifact-status.json`
+- `artifacts/report-study-guide.md`
+- `artifacts/quiz.json`
+- `artifacts/quiz.md`
+- `artifacts/quiz.html`
+- `artifacts/flashcards.json`
+- `artifacts/flashcards.md`
+- `artifacts/flashcards.html`
+- `artifacts/mindmap.json`
 - `audio.mp3`
 - `slides.pdf`
 - `slides.pptx`
@@ -170,6 +212,17 @@ based_on:
   - notebooklm/topology.md
 ---
 ```
+
+### `notebooklm/artifacts/`
+
+`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifacts 的下载结果。默认生成并下载：
+
+- report：`nlm report create <notebook_id> --format "Study Guide" --confirm`，下载为 `report-study-guide.md`。
+- quiz：`nlm quiz create <notebook_id> --count 10 --difficulty 3 --confirm`，下载 `json`、`markdown`、`html` 三种格式。
+- flashcards：`nlm flashcards create <notebook_id> --difficulty hard --confirm`，下载 `json`、`markdown`、`html` 三种格式。
+- mind map：`nlm mindmap create <notebook_id> --confirm`，用 `nlm download mind-map` 下载为 `mindmap.json`。
+
+`artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、downloaded_paths、generated_at、downloaded_at。若某项失败，保留失败状态与错误摘要。
 
 ## `notes/`
 

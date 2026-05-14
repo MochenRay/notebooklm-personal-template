@@ -9,6 +9,7 @@
   -> Agent 用 NotebookLM Pipeline 处理
   -> 通过 nlm CLI 创建 NotebookLM notebook
   -> NotebookLM 消化内容
+  -> 自动生成并下载正式 NotebookLM Studio artifacts
   -> 本地 vault 保存过程与结果
   -> Agent 提议 topic 聚合
   -> 用户后验拍板
@@ -24,6 +25,7 @@
 - `topics/` 是可漂移的聚合层，由 agent 建议、用户确认。
 - 第一阶段采用 `notebooklm-mcp-cli` 的 `nlm` CLI-first，MCP 可选，暂不引入 `notebooklm-py`。
 - MVP 一条 source 一个 Notebook，跨 source 聚合放在本地 `topics/`。
+- 添加 source 且 ready 后，默认自动生成正式 NotebookLM Studio artifacts：Study Guide report、10 题 quiz、hard flashcards、mind map，并下载到 `notebooklm/artifacts/`。
 - 默认不生成 `publish/website.md`；发布投影需明确指令，后续可另抽发布 skill。
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
 - 项目准备 Git 化与开源；私人 truth vault、raw 原始材料、媒体 artifact、凭证默认不进 Git。
@@ -133,6 +135,7 @@
 - `vault/sessions/YYYY/MM/<slug>/source.yaml`
 - `notes/process-log.md`
 - `notebooklm/report.md` 或 `notebooklm/topology.md`
+- `notebooklm/artifacts/` 下的正式 artifacts：report、quiz、flashcards、mind map
 - `notes/questions.md`
 - 知识卡片式 `synthesis.md`
 

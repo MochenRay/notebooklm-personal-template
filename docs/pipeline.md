@@ -9,6 +9,7 @@ YouTube URL
   -> agent 创建本地 session
   -> agent 通过 nlm CLI 创建 NotebookLM notebook
   -> NotebookLM 消化 source
+  -> agent 生成并下载正式 NotebookLM Studio artifacts
   -> agent 拉回结构化输出
   -> 本地 notes + synthesis
   -> topic 建议与索引
@@ -27,6 +28,7 @@ YouTube URL
 agent 不应强制用户先给完整 topic、目标、输出格式。MVP 阶段只支持 YouTube URL。默认目标是：
 
 - 消化内容。
+- 生成正式 NotebookLM Studio artifacts。
 - 提取核心结构。
 - 形成小型知识拓扑。
 - 生成个人追问。
@@ -60,6 +62,7 @@ vault/sessions/YYYY/MM/<slug>/
   source.yaml
   raw/
   notebooklm/
+    artifacts/
   notes/
   synthesis.md
   publish/
@@ -97,7 +100,41 @@ nlm source add <notebook_id> --url "<URL>"
 - 可建议使用 transcript MCP 或手动导出 transcript。
 - 不要把失败误写成已完成。
 
-## 阶段 4：NotebookLM 消化
+## 阶段 4：正式 artifacts 生成与下载
+
+添加 source 且等待 ready 后，agent 默认立刻生成正式 NotebookLM Studio artifacts，不需要用户主动唤起。
+
+默认生成：
+
+```bash
+nlm report create <notebook_id> --format "Study Guide" --confirm
+nlm quiz create <notebook_id> --count 10 --difficulty 3 --confirm
+nlm flashcards create <notebook_id> --difficulty hard --confirm
+nlm mindmap create <notebook_id> --confirm
+```
+
+随后查询状态：
+
+```bash
+nlm studio status <notebook_id> --json
+```
+
+下载到本地 vault：
+
+```bash
+nlm download report <notebook_id> --id <artifact_id> --output "notebooklm/artifacts/report-study-guide.md"
+nlm download quiz <notebook_id> --id <artifact_id> --format json --output "notebooklm/artifacts/quiz.json"
+nlm download quiz <notebook_id> --id <artifact_id> --format markdown --output "notebooklm/artifacts/quiz.md"
+nlm download quiz <notebook_id> --id <artifact_id> --format html --output "notebooklm/artifacts/quiz.html"
+nlm download flashcards <notebook_id> --id <artifact_id> --format json --output "notebooklm/artifacts/flashcards.json"
+nlm download flashcards <notebook_id> --id <artifact_id> --format markdown --output "notebooklm/artifacts/flashcards.md"
+nlm download flashcards <notebook_id> --id <artifact_id> --format html --output "notebooklm/artifacts/flashcards.html"
+nlm download mind-map <notebook_id> --id <artifact_id> --output "notebooklm/artifacts/mindmap.json"
+```
+
+`nlm download mind-map` 使用 hyphen；不要写成 `mindmap`。下载失败时记录到 `notes/process-log.md`，不要把失败误写成已完成。若个别 artifact 超时或失败，先保存已完成 artifacts，继续后续消化，并在 `source.yaml` 标注失败项。
+
+## 阶段 5：NotebookLM 追问与消化
 
 默认追问模板：
 
@@ -115,11 +152,12 @@ notebooklm/topology.md
 notebooklm/study-guide.md
 notebooklm/quiz.json
 notebooklm/flashcards.json
+notebooklm/artifacts/
 ```
 
-若 NotebookLM artifact 可下载，再下载原始 artifact；否则保存 agent 查询结果并标注来源。
+`notebooklm/report.md`、`topology.md`、`study-guide.md` 可以来自 NotebookLM query 后的结构化整理；`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifact 下载结果。
 
-## 阶段 5：本地二次消化
+## 阶段 6：本地二次消化
 
 agent 基于本地文件写：
 
@@ -129,7 +167,7 @@ agent 基于本地文件写：
 
 `synthesis.md` 是本地沉淀的核心，不是 NotebookLM 单次回答的复制，也不是普通观看笔记。它应能被未来 Codex/Gemini 直接复用。
 
-## 阶段 6：topic 建议
+## 阶段 7：topic 建议
 
 agent 自动生成 topic 建议，不要求用户一开始分类。
 
@@ -149,7 +187,7 @@ topics:
 
 只有用户确认后，才更新 `topics/<topic>/index.md` 的 approved 关联。MVP 每次处理结束都必须询问用户是否确认 proposed topics。
 
-## 阶段 7：发布边界
+## 阶段 8：发布边界
 
 默认不生成：
 
@@ -168,12 +206,13 @@ status:
 
 只有用户明确要求发布，或后续调用发布 skill，才生成 `publish/website.md`。发布稿应遵守 `docs/publishing-policy.md`。
 
-## 阶段 8：收尾记录
+## 阶段 9：收尾记录
 
 每次处理结束，更新：
 
 - `source.yaml` 的状态。
 - `notes/process-log.md`。
+- `notebooklm/artifacts/` 的下载清单。
 - `vault/notebooklm/notebooks.yaml`。
 - topic proposed/approved 状态。
 - topic 确认问题。

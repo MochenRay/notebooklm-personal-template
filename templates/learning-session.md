@@ -18,6 +18,28 @@
 - Source IDs：
 - 状态：
 
+## Studio Artifacts
+
+生成命令：
+
+- [ ] `nlm report create <notebook_id> --format "Study Guide" --confirm`
+- [ ] `nlm quiz create <notebook_id> --count 10 --difficulty 3 --confirm`
+- [ ] `nlm flashcards create <notebook_id> --difficulty hard --confirm`
+- [ ] `nlm mindmap create <notebook_id> --confirm`
+
+状态与下载：
+
+- [ ] `nlm studio status <notebook_id> --json`
+- [ ] `notebooklm/artifacts/artifact-status.json`
+- [ ] `notebooklm/artifacts/report-study-guide.md`
+- [ ] `notebooklm/artifacts/quiz.json`
+- [ ] `notebooklm/artifacts/quiz.md`
+- [ ] `notebooklm/artifacts/quiz.html`
+- [ ] `notebooklm/artifacts/flashcards.json`
+- [ ] `notebooklm/artifacts/flashcards.md`
+- [ ] `notebooklm/artifacts/flashcards.html`
+- [ ] `notebooklm/artifacts/mindmap.json`
+
 ## Topics
 
 ### Proposed
