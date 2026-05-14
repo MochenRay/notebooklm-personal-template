@@ -1,0 +1,29 @@
+# Private truth vault and local learning outputs
+/vault/
+/private-vault/
+
+# Raw source snapshots and generated media, if a sample vault is ever created in-repo
+**/raw/
+**/*.mp3
+**/*.mp4
+**/*.m4a
+**/*.mov
+**/*.wav
+**/*.pptx
+**/*.pdf
+
+# NotebookLM / browser credentials and local runtime
+.notebooklm/
+.notebooklm-mcp-cli/
+storage_state.json
+auth.json
+cookies.txt
+*.cookie
+*.cookies
+
+# Local OS/editor noise
+.DS_Store
+.env
+.env.*
+!.env.example
+
