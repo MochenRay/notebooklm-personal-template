@@ -50,7 +50,7 @@
 
 ### Approved
 
-- 待确认
+- 默认同 Proposed；处理结束时展示给用户，用户有异议再修订。
 
 ## NotebookLM 输出
 

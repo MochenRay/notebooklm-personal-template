@@ -12,7 +12,7 @@
   -> 自动生成并下载正式 NotebookLM Studio artifacts
   -> 本地 vault 保存过程与结果
   -> Agent 提议 topic 聚合
-  -> 用户后验拍板
+  -> 默认 approved 并展示给用户
   -> 形成可复用知识卡片
 ```
 
@@ -22,7 +22,7 @@
 - NotebookLM 是消化引擎，不是事实层。
 - 本地 vault 是事实层。
 - `sessions/` 按时间保存稳定学习事件。
-- `topics/` 是可漂移的聚合层，由 agent 建议、用户确认。
+- `topics/` 是可漂移的聚合层，由 agent 建议、默认批准并展示，用户有异议再修订。
 - 第一阶段采用 `notebooklm-mcp-cli` 的 `nlm` CLI-first，MCP 可选，暂不引入 `notebooklm-py`。
 - MVP 一条 source 一个 Notebook，跨 source 聚合放在本地 `topics/`。
 - 添加 source 且 ready 后，默认自动生成正式 NotebookLM Studio artifacts：Study Guide report、10 题 quiz、hard flashcards、mind map，并下载到 `notebooklm/artifacts/`。
@@ -53,7 +53,7 @@
 | 0. 概念收敛 | 明确 truth layer、CLI-first、topic 漂移层、runbook-first | 已完成 |
 | 1. 工具与仓库接入 | 安装并验证 `notebooklm-mcp-cli`、`nlm`、Git 边界、Codex/Gemini 接入 | 已完成：CLI/Codex/Git 已验证，Gemini 按需 |
 | 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 进行中：样本 1 已完成 |
-| 3. Topic 聚合验证 | 验证 agent topic 建议、用户确认、跨月聚合是否可用 | 进行中：样本 1 topics 已确认 |
+| 3. Topic 聚合验证 | 验证 agent topic 建议、默认批准展示、跨月聚合是否可用 | 进行中：样本 1 topics 已写入 approved |
 | 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 未开始 |
 | 5. 发布投影 | 在明确发布指令下，验证个人网站知识区与社媒草稿生成 | 未开始 |
 | 6. OpenClaw / Telegram 入口 | 探索 Telegram 发 YouTube URL 后由 OpenClaw 触发 NotebookLM Pipeline | 未来候选 |
@@ -68,7 +68,7 @@
 - 用户最小输入是 YouTube URL + “NotebookLM Pipeline”。
 - agent 应自动创建本地 session、调用 NotebookLM、拉回结构化结果。
 - 不要求用户一开始定义 topic。
-- topic 由 agent 提议，MVP 每次处理结束询问用户确认。
+- topic 由 agent 提议并默认批准；MVP 每次处理结束展示已 approved topics，用户有疑问或觉得不对再修订。
 - `sessions/` 是稳定事实层；`topics/` 是漂移索引层。
 - MVP 一条 source 一个 Notebook。
 - 默认不生成发布草稿，不自动发布。
@@ -156,7 +156,7 @@
 - 已产出 `source.yaml`、`notebooklm/report.md`、`notebooklm/topology.md`、`notebooklm/study-guide.md`、`notes/questions.md`、`notes/debate.md`、`synthesis.md`。
 - 已补跑正式 NotebookLM Studio artifacts 并下载到 `notebooklm/artifacts/`：report、quiz、flashcards、mind map。
 - 用户明确要求不发布，未生成 `publish/website.md` 或公开投影。
-- Topics 已由用户批准，并写入 `approved` 与 `vault/topics/<topic>/index.md`。
+- Topics 已写入 `approved` 与 `vault/topics/<topic>/index.md`；当前规则改为后续样本默认批准并展示，用户有异议再修订。
 
 状态：进行中。样本 1 完成，仍需继续样本 2、样本 3。
 
@@ -167,8 +167,8 @@
 待做：
 
 - 每个样本由 agent 生成 `topics.proposed`。
-- 每个样本结束时询问用户是否确认 proposed topics。
-- 用户确认后写入 `topics.approved`。
+- 每个样本默认把 proposed topic id 写入 `topics.approved`。
+- 每个样本结束时向用户展示 approved topics；用户有疑问或觉得不对，再修订。
 - 建立或更新 `vault/topics/<topic>/index.md`。
 - 验证不同月份、不同 notebook 的相关内容能否被聚合。
 
@@ -176,11 +176,12 @@
 
 - topic 建议不阻断处理流程。
 - topic 错了可以改名、合并、拆分，不需要搬 session 目录。
+- topic 不再等待用户逐项确认；默认批准，靠展示后的异议修订收敛。
 - agent 能发现“可能复用已有 topic / notebook”的情况并提出建议。
 
 当前验证记录（2026-05-13 PDT）：
 
-- 样本 1 的 proposed topics 已由用户批准：
+- 样本 1 的 topics 已写入 approved：
   - `personal-growth`
   - `identity-reinvention`
   - `behavior-change`
@@ -188,7 +189,7 @@
 - 已写入 session `source.yaml`、`synthesis.md`、`vault/notebooklm/notebooks.yaml`。
 - 已建立 `vault/topics/<topic>/index.md` 的 approved 关联。
 
-状态：进行中。样本 1 topic 确认链路完成；仍需用样本 2、样本 3 验证跨 session 聚合。
+状态：进行中。样本 1 topic 链路完成；后续样本按默认 approved + 展示机制验证跨 session 聚合。
 
 ## 阶段 4：Skill 化决策
 
@@ -269,4 +270,4 @@ Telegram message with YouTube URL
 
 ## 当前下一步
 
-最小下一步是继续阶段 2 的样本 2 与样本 3，并观察已 approved topics 是否能跨 session 复用。
+最小下一步是继续阶段 2 的样本 2 与样本 3，并观察默认 approved topics 是否能跨 session 复用。

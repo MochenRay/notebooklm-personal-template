@@ -13,7 +13,7 @@ YouTube URL
   -> agent 拉回结构化输出
   -> 本地 notes + synthesis
   -> topic 建议与索引
-  -> 用户确认 topic
+  -> 默认 approved topics 并展示给用户
 ```
 
 ## 默认入口
@@ -169,7 +169,7 @@ agent 基于本地文件写：
 
 ## 阶段 7：topic 建议
 
-agent 自动生成 topic 建议，不要求用户一开始分类。
+agent 自动生成 topic 建议，不要求用户一开始分类。建议生成后默认视为 approved，并在最终回复展示给用户；若用户有疑问或觉得不对，再修订 `approved` 与 topic 索引。
 
 写入 `source.yaml`：
 
@@ -182,10 +182,12 @@ topics:
     - id: personal-knowledge-system
       confidence: 0.72
       reason: "可迁移到本地 vault 与公开知识区"
-  approved: []
+  approved:
+    - ai-agents
+    - personal-knowledge-system
 ```
 
-只有用户确认后，才更新 `topics/<topic>/index.md` 的 approved 关联。MVP 每次处理结束都必须询问用户是否确认 proposed topics。
+默认立即更新 `topics/<topic>/index.md` 的 approved 关联。MVP 每次处理结束都必须展示默认 approved topics；用户提出疑问、改名、合并、拆分或删除要求时，再回写修订结果。
 
 ## 阶段 8：发布边界
 
@@ -215,6 +217,6 @@ status:
 - `notebooklm/artifacts/` 的下载清单。
 - `vault/notebooklm/notebooks.yaml`。
 - topic proposed/approved 状态。
-- topic 确认问题。
+- 已展示给用户的 approved topics 与后续修订入口。
 
 完成声明必须附带实际产物路径。

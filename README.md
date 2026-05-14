@@ -14,7 +14,7 @@
 - MVP 以 `notebooklm-mcp-cli` 的 `nlm` CLI-first 为主；MCP 可用但不作为第一验收标准。
 - `notebooklm-py` 暂作第二阶段候选，用于稳定批量导出、Python pipeline、网站 build 数据生成。
 - 话题/领域会漂移。文件系统不承载领域真相；`sessions/` 按时间固定保存，`topics/` 做可调整索引。
-- topic 由 agent 先建议，你拍板；MVP 每次处理结束必须请你确认 proposed topics。
+- topic 由 agent 先建议并默认批准；MVP 每次处理结束必须展示已 approved topics，你若觉得不对再修订。
 - Notebook 粒度：MVP 一条 source 一个 Notebook。跨 source、跨课程、跨主题的聚合先放在本地 `topics/`，后续再做复用 notebook。
 - 添加 source 且 ready 后，默认生成正式 NotebookLM Studio artifacts：Study Guide report、10 题 quiz、hard flashcards、mind map，并下载到本地 vault。
 - 项目本身准备 Git 化与开源；私人 truth vault、raw transcript、媒体 artifact、凭证与本地运行态默认不进 Git。
@@ -96,12 +96,12 @@ personal website / social media
 
 - 一个本地 session 目录。
 - 一个新建 NotebookLM notebook。
-- `source.yaml`，含 URL、NotebookLM id、proposed topics。
+- `source.yaml`，含 URL、NotebookLM id、proposed/approved topics。
 - `notebooklm/` 下的结构化输出。
 - `notebooklm/artifacts/` 下的正式 NotebookLM Studio artifacts：report、quiz、flashcards、mind map。
 - `notes/` 下的个人追问和理解。
 - 知识卡片式 `synthesis.md`。
-- 结束时向你询问 proposed topics 是否确认。
+- 结束时展示默认 approved topics；若你有疑问或觉得不对，再修订 topic 归属。
 
 ## 下一步
 

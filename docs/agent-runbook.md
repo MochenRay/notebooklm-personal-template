@@ -52,7 +52,7 @@
 - 默认只生成本地沉淀，不生成发布草稿。
 - 默认不删除、不公开分享、不邀请协作者、不发布社媒。
 - 默认一条 source 一个 Notebook。
-- 默认 topic 由 agent 提议，并在处理结束时询问用户是否确认。
+- 默认 topic 由 agent 提议并直接写入 approved，处理结束时展示给用户；用户有疑问或觉得不对再修订。
 - 默认 `synthesis.md` 写成知识卡片，不写成普通观看笔记。
 
 ## 执行步骤
@@ -164,15 +164,16 @@ notes/questions.md
 ```yaml
 topics:
   proposed:
-    - id: ""
+    - id: "<topic-id>"
       confidence: 0.0
-      reason: ""
-  approved: []
+      reason: "<why this topic fits>"
+  approved:
+    - "<topic-id>"
 ```
 
-若已有 `vault/topics/<topic>/index.md`，标注“可能复用”。未确认前不要写成 approved。
+若已有 `vault/topics/<topic>/index.md`，标注“复用既有 topic”。默认把 proposed topic id 同步写入 `approved`，并更新 `vault/topics/<topic>/index.md` 的 approved 关联。
 
-处理结束前，必须询问用户是否确认 proposed topics。用户未确认时，保持 `approved: []`。
+处理结束前，必须展示已默认批准的 topics。用户若提出疑问、改名、合并、拆分或删除要求，再修订 `source.yaml`、`synthesis.md`、`vault/notebooklm/notebooks.yaml` 与对应 topic 索引。
 
 ### 8. 发布边界
 
@@ -188,7 +189,7 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 - `notes/process-log.md`
 - `notebooklm/artifacts/`
 - `vault/notebooklm/notebooks.yaml`
-- `topics.proposed` 与 topic 确认问题
+- `topics.proposed`、`topics.approved` 与最终回复中的 topic 展示
 
 最终回复必须列出实际创建/更新的文件路径。
 
@@ -199,9 +200,8 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 - URL 内容敏感或涉及未公开项目。
 - 是否进入公开候选存在明显风险。
 - 需要用户提供权限、登录或人工网页操作。
-- 处理结束时确认 proposed topics。
 
-不要因为 topic 不确定而停下；先写 proposed。
+不要因为 topic 不确定而停下；先写 proposed，并默认同步为 approved。处理结束时展示 approved topics，等待用户后续异议即可。
 
 ## 禁止事项
 
