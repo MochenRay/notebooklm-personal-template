@@ -30,6 +30,7 @@
    - `docs/pipeline.md`
    - `docs/vault-schema.md`
    - `docs/publishing-policy.md`
+   - `docs/repository-model.md`
 2. 检查 `nlm` 是否可用：
    ```bash
    nlm --version
@@ -42,6 +43,19 @@
    nlm login --profile learning
    ```
 5. 若本机已有 `~/.agents/skills/notebooklm-pipeline/SKILL.md`，新对话可直接用该 skill 执行本 runbook；本文件仍是项目内的正式流程说明。
+
+## Repository / Merge 边界
+
+本项目有两个 GitHub 投影：
+
+- private living instance：`MochenRay/notebooklm-personal`
+- public template：`MochenRay/notebooklm-personal-template`
+
+以后用户在本项目说“merge”，默认先 merge 到 private living instance。随后只把 public-safe 内容同步到 public template。
+
+不要把当前 `HEAD` 直接推到 public template，因为当前 `HEAD` 可能包含真实 `vault/` digest。公开模板仓只能包含工具代码、Viewer、脚本、文档、模板与空 `vault/` 壳。
+
+具体规则见 `docs/repository-model.md`。
 
 ## 默认策略
 

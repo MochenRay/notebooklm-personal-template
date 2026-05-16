@@ -80,7 +80,7 @@ async function main() {
     await page.screenshot({ path: path.join(screenshotDir, "overview-desktop.png"), fullPage: true });
 
     await page.goto(`${baseUrl}/#/sessions`, { waitUntil: "networkidle" });
-    await page.getByPlaceholder("Search sessions...").fill("software");
+    await page.getByPlaceholder("搜索学习记录...").fill("software");
     await page.getByRole("heading", { name: /Software Fundamentals/ }).waitFor();
 
     await page.goto(`${baseUrl}/#/sessions/${sessionId}`, { waitUntil: "networkidle" });
@@ -99,8 +99,8 @@ async function main() {
     await page.getByRole("heading", { name: topicId }).waitFor();
 
     await page.goto(`${baseUrl}/#/health`, { waitUntil: "networkidle" });
-    await page.getByRole("heading", { name: "Vault Health" }).waitFor();
-    await page.getByText("multiple_source_ids").waitFor();
+    await page.getByRole("heading", { name: "Vault 健康检查" }).waitFor();
+    await page.getByText("确认这条记录的 NotebookLM 来源").waitFor();
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${baseUrl}/#/sessions`, { waitUntil: "networkidle" });

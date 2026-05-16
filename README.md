@@ -65,6 +65,7 @@ notebooklm-personal/
 - 给我看的项目汇报与路线图：`docs/experiment-plan.md`
 - 给 agent 执行用的 runbook：`docs/agent-runbook.md`
 - 具体流程、结构、工具和发布边界：`docs/pipeline.md`、`docs/vault-schema.md`、`docs/tool-selection.md`、`docs/publishing-policy.md`
+- 私有仓 / 公开仓分工与 merge 规则：`docs/repository-model.md`
 
 若 agent-facing 文档改变了目标、阶段、流程、工具取舍或输出结构，必须同步更新 `docs/experiment-plan.md`，让它保持为最新的人类汇报页。
 
@@ -100,6 +101,17 @@ topics index
 personal website / social media
   公开投影层，需明确发布指令，不属于默认 NotebookLM Pipeline
 ```
+
+## Repository Model
+
+本项目采用 private living instance + public template：
+
+- `MochenRay/notebooklm-personal`：私有完整实例，包含真实 `vault/` digest。
+- `MochenRay/notebooklm-personal-template`：公开模板仓，包含工具、文档、脚本、Viewer 与空 `vault/` 壳。
+
+以后在本项目说“merge”，默认先进入私有仓，再审计 public-safe diff，并只把安全内容同步到公开模板仓。不要把含真实 `vault/` 的当前 `HEAD` 直接推到 public template。
+
+细则见 `docs/repository-model.md`。
 
 ## MVP 成功标准
 

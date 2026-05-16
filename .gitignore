@@ -3,6 +3,7 @@
 /.viewer-data/
 dist/
 node_modules/
+.vite/
 *.tsbuildinfo
 
 # Raw source snapshots and generated media, if a sample vault is ever created in-repo

@@ -28,7 +28,7 @@
 - 添加 source 且 ready 后，默认自动生成正式 NotebookLM Studio artifacts：Study Guide report、10 题 quiz、hard flashcards、mind map，并下载到 `notebooklm/artifacts/`。
 - 默认不生成 `publish/website.md`；发布投影需明确指令，后续可另抽发布 skill。
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
-- 项目准备 Git 化与开源；私人 truth vault、raw 原始材料、媒体 artifact、凭证默认不进 Git。
+- 项目采用 private living instance + public template。私有仓包含真实 `vault/`；公开模板仓只包含工具、文档、Viewer 与空 `vault/` 壳。
 - 先用 runbook 跑通 3 个样本，再决定是否抽成全局 skill。
 - 远期可探索 `Telegram -> OpenClaw -> NotebookLM Pipeline` 的异步入口，但不进入 MVP。
 
@@ -43,6 +43,7 @@
 | `docs/vault-schema.md` | agent | 本地目录与数据结构 |
 | `docs/tool-selection.md` | 我 + agent | 工具取舍 |
 | `docs/publishing-policy.md` | agent | 发布、版权、脱敏边界 |
+| `docs/repository-model.md` | 我 + agent | 私有仓 / 公开仓分工与 merge 规则 |
 
 对齐规则：只要 agent-facing 文档改变了项目目标、阶段、流程、工具取舍或输出结构，必须同步更新本文件。
 
@@ -73,7 +74,7 @@
 - MVP 一条 source 一个 Notebook。
 - 默认不生成发布草稿，不自动发布。
 - `synthesis.md` 采用知识卡片结构。
-- 开源项目与私人 truth vault 分层，私人 vault、raw 原始材料、媒体 artifact、凭证默认不进 Git。
+- private living instance 与 public template 分层；以后 merge 默认先进入私有仓，再筛选 public-safe 内容同步公开仓。
 
 已产出：
 
@@ -83,6 +84,7 @@
 - `docs/vault-schema.md`
 - `docs/tool-selection.md`
 - `docs/publishing-policy.md`
+- `docs/repository-model.md`
 - `templates/learning-session.md`
 
 ## 阶段 1：工具与仓库接入
