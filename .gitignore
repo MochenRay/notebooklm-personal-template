@@ -1,6 +1,9 @@
-# Private truth vault and local learning outputs
-/vault/
+# Local learning outputs
 /private-vault/
+/.viewer-data/
+dist/
+node_modules/
+*.tsbuildinfo
 
 # Raw source snapshots and generated media, if a sample vault is ever created in-repo
 **/raw/
@@ -26,4 +29,3 @@ cookies.txt
 .env
 .env.*
 !.env.example
-

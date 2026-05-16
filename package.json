@@ -1,0 +1,29 @@
+{
+  "name": "notebooklm-vault-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:data": "node scripts/build-viewer-data.mjs",
+    "predev": "npm run build:data",
+    "dev": "vite",
+    "build": "npm run build:data && tsc -b && vite build",
+    "smoke": "node scripts/smoke-viewer.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "js-yaml": "^4.1.0",
+    "lucide-react": "^0.468.0",
+    "marked": "^14.1.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.5",
+    "playwright": "^1.49.1",
+    "typescript": "^5.7.2"
+  }
+}
