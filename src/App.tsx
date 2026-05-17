@@ -51,7 +51,7 @@ const navItems = [
   { href: "/health", label: "健康检查", icon: HeartPulse, match: ["health"] },
 ];
 
-type SessionSort = "latest" | "reread" | "artifacts";
+type SessionSort = "latest" | "earliest";
 type SessionTocItem = {
   id: string;
   label: string;
@@ -91,6 +91,10 @@ type SessionRelatedItem = {
   session: VaultSession;
   overlap: number;
   sharedTopics: string[];
+};
+type TopicRelatedSignal = {
+  id: string;
+  count: number;
 };
 type CollapsibleHeadingLevel = 2 | 3 | 4 | 5 | 6;
 type MindmapLayoutNode = {
@@ -171,6 +175,7 @@ function Breadcrumb({ current }: { current: string }) {
 
 function Sidebar({ route, currentRoute }: { route: string; currentRoute: Route }) {
   const currentSession = currentRoute.name === "session" ? sessionById.get(currentRoute.id) : undefined;
+  const currentTopic = currentRoute.name === "topic" ? topicById.get(currentRoute.id) : undefined;
 
   return (
     <aside className="sidebar" aria-label="Vault navigation">
@@ -196,6 +201,7 @@ function Sidebar({ route, currentRoute }: { route: string; currentRoute: Route }
         })}
       </nav>
       {currentSession ? <SessionContextPanel session={currentSession} /> : null}
+      {currentTopic ? <TopicSidebarPanel topic={currentTopic} /> : null}
     </aside>
   );
 }
@@ -230,6 +236,29 @@ function SessionContextPanel({ session }: { session: VaultSession }) {
           </div>
         </div>
       ) : null}
+    </section>
+  );
+}
+
+function TopicSidebarPanel({ topic }: { topic: VaultTopic }) {
+  const related = useMemo(() => relatedTopicsForTopic(topic).slice(0, 8), [topic]);
+
+  if (!related.length) return null;
+
+  return (
+    <section className="session-context topic-sidebar-context" aria-label="本 topic 关联主题">
+      <p>本 topic 关联</p>
+      <div className="context-group">
+        <h2>关联主题</h2>
+        <div className="context-topic-list">
+          {related.map((item) => (
+            <a href={href(`/topics/${item.id}`)} key={item.id}>
+              <span>{topicTitle(item.id)}</span>
+              <small>{item.count} 条共同记录</small>
+            </a>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
@@ -313,7 +342,6 @@ function Overview() {
     [query],
   );
   const latestSession = sessions[0];
-  const attentionCount = sessions.filter(sessionNeedsAttention).length + healthData.summary.totalFindings;
 
   return (
     <div className="page-stack">
@@ -344,12 +372,11 @@ function Overview() {
           value={topTopics[0]?.title ?? "none"}
         />
         <ActionMetric
-          detail={healthData.summary.status === "ok" ? "当前无阻断项" : `${healthData.summary.totalFindings} 条 finding，${attentionCount} 个关注入口`}
-          href={href("/health")}
-          icon={AlertTriangle}
-          label="待处理状态"
-          tone={healthData.summary.status === "ok" ? "good" : "warn"}
-          value={healthData.summary.status === "ok" ? "正常" : "需复核"}
+          detail={`${snapshot.sessionsCount} 条记录，覆盖 ${snapshot.monthRange.join(" - ") || "暂无月份"}`}
+          href={href("/sessions")}
+          icon={BookOpen}
+          label="学习沉淀"
+          value={`${snapshot.sessionsCount} 条`}
         />
       </section>
 
@@ -365,7 +392,7 @@ function Overview() {
 
       {!isEmpty ? <div className="dashboard-grid overview-preview-grid">
         <section>
-          <SectionTitle title="主题入口" subtitle="按记录数、更新时间与健康状态组织入口。" />
+          <SectionTitle title="主题入口" subtitle="按记录数与更新时间组织入口。" />
           <TopicEntryGrid topics={filteredTopics.slice(0, 7)} />
         </section>
 
@@ -706,7 +733,6 @@ function sortGraphDetailNodes(
 function SessionsPage() {
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState("all");
-  const [coverage, setCoverage] = useState("all");
   const [sort, setSort] = useState<SessionSort>("latest");
 
   const filtered = useMemo(() => {
@@ -715,14 +741,10 @@ function SessionsPage() {
       const text = `${session.title} ${session.originalTitle} ${session.author} ${session.content.summary} ${session.topics.approved.join(" ")} ${session.topics.approved.map(topicTitle).join(" ")}`.toLowerCase();
       const matchesQuery = !needle || text.includes(needle);
       const matchesTopic = topic === "all" || session.topics.approved.includes(topic);
-      const matchesCoverage =
-        coverage === "all" ||
-        (coverage === "complete" && session.notebooklm.artifactCoverage.complete) ||
-        (coverage === "incomplete" && !session.notebooklm.artifactCoverage.complete);
-      return matchesQuery && matchesTopic && matchesCoverage;
+      return matchesQuery && matchesTopic;
     });
     return [...matches].sort((left, right) => compareSessions(left, right, sort));
-  }, [query, topic, coverage, sort]);
+  }, [query, topic, sort]);
   const grouped = useMemo(() => groupSessionsByDate(filtered), [filtered]);
 
   return (
@@ -760,19 +782,10 @@ function SessionsPage() {
           </select>
         </label>
         <label className="filter-control">
-          <span>素材</span>
-          <select value={coverage} onChange={(event) => setCoverage(event.target.value)} aria-label="Artifact filter">
-            <option value="all">全部素材</option>
-            <option value="complete">素材完整</option>
-            <option value="incomplete">有缺口</option>
-          </select>
-        </label>
-        <label className="filter-control">
           <span>排序</span>
           <select value={sort} onChange={(event) => setSort(event.target.value as SessionSort)} aria-label="Sort sessions">
             <option value="latest">最新优先</option>
-            <option value="reread">综合优先级</option>
-            <option value="artifacts">素材缺口优先</option>
+            <option value="earliest">最早优先</option>
           </select>
         </label>
         <span className="result-count">显示 {filtered.length} 条</span>
@@ -1033,9 +1046,18 @@ function TopicsPage() {
       return text.includes(needle);
     });
   }, [query]);
+  const sortedTopics = useMemo(() => [...filteredTopics].sort(compareTopicsBySignal), [filteredTopics]);
   const topicGroups = [
-    { label: "核心聚合", detail: "关联 2 条以上学习记录", items: filteredTopics.filter((topic) => topic.count > 1) },
-    { label: "单点线索", detail: "关联 1 条学习记录", items: filteredTopics.filter((topic) => topic.count <= 1) },
+    {
+      label: "高频主题",
+      detail: "被 2 篇及以上学习记录命中，按命中次数排列。",
+      items: sortedTopics.filter((topic) => topic.count > 1),
+    },
+    {
+      label: "构建中主题",
+      detail: "目前只被 1 篇学习记录命中，等待后续材料继续确认。",
+      items: sortedTopics.filter((topic) => topic.count <= 1),
+    },
   ];
 
   return (
@@ -1060,7 +1082,7 @@ function TopicsPage() {
       </div>
       <div className="topic-map-strip">
         <Metric label="当前显示" value={`${filteredTopics.length}/${topics.length}`} />
-        <Metric label="核心主题" value={`${topics.filter((topic) => topic.count > 1).length}`} />
+        <Metric label="高频主题" value={`${topics.filter((topic) => topic.count > 1).length}`} />
         <Metric label="最新月份" value={latestMonth || "none"} />
       </div>
       {filteredTopics.length ? topicGroups.map((group) => (
@@ -1082,10 +1104,14 @@ function TopicsPage() {
 function TopicCard({ topic }: { topic: VaultTopic }) {
   return (
     <a className="topic-card" href={href(`/topics/${topic.id}`)}>
-      <span className="topic-count">{topic.count}</span>
-      <h2>{topic.title}</h2>
-      <p>{topic.summary || "暂无主题摘要。"}</p>
-      <small>{topic.id} / {topic.latestDate || "暂无学习记录"} / {topic.count} 条学习记录</small>
+      <span className="topic-card-head">
+        <h2>{topic.title}</h2>
+        <span className="topic-card-tags">
+          <span>{topic.count} 条记录</span>
+          <span>更新 {formatMonthDay(topic.latestDate)}</span>
+        </span>
+      </span>
+      <p>{topicDigest(topic)}</p>
     </a>
   );
 }
@@ -1093,38 +1119,93 @@ function TopicCard({ topic }: { topic: VaultTopic }) {
 function TopicDetail({ topic }: { topic: VaultTopic }) {
   const currentUnderstanding = markdownSection(topic.markdown, "当前理解");
   const pending = markdownSection(topic.markdown, "待合并 / 待拆分");
+  const related = relatedTopicsForTopic(topic).slice(0, 8);
+  const navItems = [
+    { id: "topic-understanding", label: "当前理解" },
+    { id: "topic-sessions", label: "关联学习记录" },
+    ...(pending ? [{ id: "topic-pending", label: "待合并 / 待拆分" }] : []),
+  ];
 
   return (
-    <div className="page-stack detail-narrow">
-      <header className="page-header">
+    <div className="page-stack topic-detail-page">
+      <header className="topic-detail-hero">
         <div className="overview-copy">
           <Breadcrumb current="主题地图" />
+          <span className="topic-type">{topic.count > 1 ? "核心主题" : "单点线索"}</span>
           <h1>{topic.title}</h1>
-          <p className="page-intent">{topic.count} 条学习记录 / 最新 {topic.latestDate || "暂无"}</p>
         </div>
       </header>
-      <section className="topic-understanding">
-        <SectionTitle title="当前理解" />
-        <MarkdownView markdown={currentUnderstanding || topic.markdown} />
-      </section>
-      <section>
-        <SectionTitle title="关联学习记录" subtitle="由每条学习记录的主题标注汇总" />
-        <div className="linked-session-list">
-          {topic.sessions.map((session) => (
-            <a href={href(`/sessions/${session.id}`)} key={session.id}>
-              <span>{session.title}</span>
-              <small>{session.capturedAt}</small>
-            </a>
-          ))}
-        </div>
-      </section>
-      {pending ? (
-        <section className="topic-understanding pending">
-          <SectionTitle title="待合并 / 待拆分" />
-          <MarkdownView markdown={pending} />
-        </section>
-      ) : null}
+      <div className="topic-detail-layout">
+        <main className="topic-reader-column">
+          <section className="topic-panel topic-understanding" id="topic-understanding">
+            <SectionTitle title="当前理解" subtitle="从关联学习记录沉淀出的可复用判断" />
+            <MarkdownView markdown={currentUnderstanding || topic.markdown} />
+          </section>
+          <section className="topic-panel topic-sessions-panel" id="topic-sessions">
+            <SectionTitle title="关联学习记录" subtitle="由每条学习记录的主题标注汇总" />
+            <div className="linked-session-list topic-session-list">
+              {topic.sessions.map((session) => (
+                <a href={href(`/sessions/${session.id}`)} key={session.id}>
+                  <span>{session.title}</span>
+                  <small>{formatMonthDay(session.capturedAt)}</small>
+                </a>
+              ))}
+            </div>
+          </section>
+          {pending ? (
+            <section className="topic-panel topic-understanding pending" id="topic-pending">
+              <SectionTitle title="待合并 / 待拆分" />
+              <MarkdownView markdown={pending} />
+            </section>
+          ) : null}
+        </main>
+        <aside className="topic-rail" aria-label="主题上下文">
+          <TopicContextPanel relatedCount={related.length} topic={topic} />
+          <TopicQuickNav items={navItems} />
+        </aside>
+      </div>
     </div>
+  );
+}
+
+function TopicContextPanel({ relatedCount, topic }: { relatedCount: number; topic: VaultTopic }) {
+  return (
+    <section className="topic-context-panel" aria-label="主题上下文">
+      <p className="rail-label">主题上下文</p>
+      <div className="topic-context-title">
+        <strong>{topic.title}</strong>
+        <small>{topic.id}</small>
+      </div>
+      <div className="topic-context-stats">
+        <span>
+          <em>{topic.count}</em>
+          <small>学习记录</small>
+        </span>
+        <span>
+          <em>{formatMonthDay(topic.latestDate)}</em>
+          <small>最近更新</small>
+        </span>
+        <span>
+          <em>{relatedCount}</em>
+          <small>关联主题</small>
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function TopicQuickNav({ items }: { items: Array<{ id: string; label: string }> }) {
+  return (
+    <nav className="topic-quick-nav" aria-label="主题快速定位">
+      <p className="rail-label">快速定位</p>
+      <div>
+        {items.map((item) => (
+          <button key={item.id} onClick={() => scrollToPageSection(item.id)} type="button">
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </nav>
   );
 }
 
@@ -1577,10 +1658,6 @@ function matchesOverviewTopic(topic: VaultTopic, query: string) {
   return `${topic.id} ${topic.title} ${topic.summary}`.toLowerCase().includes(needle);
 }
 
-function sessionNeedsAttention(session: VaultSession) {
-  return session.health.status !== "ok" || !session.notebooklm.artifactCoverage.complete;
-}
-
 function formatMonthDay(date?: string) {
   if (!date) return "暂无";
   return date.length >= 10 ? date.slice(5, 10) : date;
@@ -1592,6 +1669,30 @@ function compareTopicsBySignal(left: VaultTopic, right: VaultTopic) {
   const dateDelta = (right.latestDate ?? "").localeCompare(left.latestDate ?? "");
   if (dateDelta !== 0) return dateDelta;
   return left.title.localeCompare(right.title, "zh-Hans-CN");
+}
+
+function topicDigest(topic: VaultTopic) {
+  const summary = topic.summary.trim();
+  if (summary && summary !== topic.title && summary !== topic.id) return summary;
+
+  return "暂无稳定概述。";
+}
+
+function relatedTopicsForTopic(topic: VaultTopic): TopicRelatedSignal[] {
+  const counts = new Map<string, number>();
+
+  for (const link of topic.sessions) {
+    const session = sessionById.get(link.id);
+    if (!session) continue;
+    for (const topicId of session.topics.approved) {
+      if (topicId === topic.id || !topicById.has(topicId)) continue;
+      counts.set(topicId, (counts.get(topicId) ?? 0) + 1);
+    }
+  }
+
+  return Array.from(counts, ([id, count]) => ({ id, count })).sort((left, right) => (
+    right.count - left.count || topicTitle(left.id).localeCompare(topicTitle(right.id), "zh-Hans-CN")
+  ));
 }
 
 function scrollToPageSection(id: string) {
@@ -2401,12 +2502,7 @@ function groupFindings(findings: HealthFinding[]) {
 }
 
 function compareSessions(left: VaultSession, right: VaultSession, sort: SessionSort) {
-  if (sort === "reread") return right.rereadScore - left.rereadScore || latestFirst(left, right);
-  if (sort === "artifacts") {
-    const leftGap = left.notebooklm.artifactCoverage.declaredCount - left.notebooklm.artifactCoverage.presentCount;
-    const rightGap = right.notebooklm.artifactCoverage.declaredCount - right.notebooklm.artifactCoverage.presentCount;
-    return rightGap - leftGap || latestFirst(left, right);
-  }
+  if (sort === "earliest") return latestFirst(right, left);
   return latestFirst(left, right);
 }
 

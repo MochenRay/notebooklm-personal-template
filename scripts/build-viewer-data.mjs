@@ -130,6 +130,28 @@ function firstParagraph(markdown) {
   return body ? body.replace(/\s+/g, " ").slice(0, 220) : "";
 }
 
+function markdownSection(markdown, heading) {
+  const lines = stripFrontmatter(markdown).split("\n");
+  const start = lines.findIndex((line) => line.trim() === `## ${heading}`);
+  if (start === -1) return "";
+  const end = lines.findIndex((line, index) => index > start && /^##\s+/.test(line.trim()));
+  return lines.slice(start + 1, end === -1 ? undefined : end).join("\n").trim();
+}
+
+function firstSectionParagraph(markdown, heading) {
+  const body = markdownSection(markdown, heading)
+    .split(/\n{2,}/)
+    .map((block) => block.replace(/^[-*]\s+/gm, "").trim())
+    .find(Boolean);
+  return body ? body.replace(/\s+/g, " ") : "";
+}
+
+function topicListSummary(markdown, title) {
+  const summary = firstSectionParagraph(markdown, "列表摘要");
+  if (!summary || summary === title) return "";
+  return summary;
+}
+
 function hasCjk(text) {
   return /[\u3400-\u9fff]/.test(text);
 }
@@ -488,6 +510,7 @@ function buildTopics(sessions, approvedTopicMap, findings) {
 
     const markdown = readTextIfExists(indexPath);
     const topicTitle = markdownTitle(markdown, titleCaseTopicId(topicId));
+    const summary = topicListSummary(markdown, topicTitle);
     if (topicTitle && !hasCjk(topicTitle)) {
       findings.push({
         severity: "warning",
@@ -495,6 +518,15 @@ function buildTopics(sessions, approvedTopicMap, findings) {
         topicId,
         path: relativeToRoot(indexPath),
         message: "Topic index H1 should be a Chinese display title while the directory id stays stable.",
+      });
+    }
+    if (!summary) {
+      findings.push({
+        severity: "warning",
+        type: "missing_topic_list_summary",
+        topicId,
+        path: relativeToRoot(indexPath),
+        message: "Topic index should include ## 列表摘要 for topic-list display.",
       });
     }
     const sessionIds = approvedTopicMap.get(topicId) || [];
@@ -560,7 +592,7 @@ function buildTopics(sessions, approvedTopicMap, findings) {
       })),
       count: relatedSessions.length,
       latestDate: relatedSessions[0]?.capturedAt || "",
-      summary: firstParagraph(markdown),
+      summary,
     });
   }
 
@@ -613,6 +645,7 @@ function buildHealth(findings, sessions, topics) {
       "artifact_schema_warning",
       "missing_session_title_zh",
       "missing_topic_title_zh",
+      "missing_topic_list_summary",
     ],
     findings,
   };
