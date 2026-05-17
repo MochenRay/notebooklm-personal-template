@@ -69,23 +69,34 @@ select {
 
 .brand {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 56px;
 }
 
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
-  color: #111;
+  flex: 0 0 78px;
+  width: 78px;
+  height: 48px;
+  overflow: hidden;
+  border-radius: 9px;
+  box-shadow: 0 1px 0 rgba(23, 37, 84, 0.08);
+}
+
+.brand-mark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .brand strong {
   display: block;
-  font-size: 21px;
+  font-size: 18px;
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .brand em {
@@ -94,6 +105,7 @@ select {
   color: var(--muted);
   font-size: 14px;
   font-style: normal;
+  white-space: nowrap;
 }
 
 .nav-list {
@@ -218,8 +230,8 @@ select {
 .action-metric {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
   gap: 12px;
   min-height: 88px;
   padding: 14px 42px 14px 15px;
@@ -232,8 +244,9 @@ select {
 
 .action-metric > svg:last-child {
   position: absolute;
-  top: 17px;
+  top: 50%;
   right: 15px;
+  transform: translateY(-50%);
 }
 
 .action-metric:hover {
@@ -245,17 +258,26 @@ select {
 .action-metric-icon {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 48px;
+  height: 48px;
   border: 1px solid #d9ddd4;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #f2f5ee;
   color: #305f4b;
 }
 
-.action-metric span:nth-child(2) {
+.action-metric-copy {
   display: grid;
-  gap: 4px;
+  align-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 48px;
+}
+
+.action-metric-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -266,9 +288,14 @@ select {
   font-style: normal;
 }
 
+.action-metric em {
+  flex: 0 0 auto;
+}
+
 .action-metric strong {
   overflow: hidden;
-  font-size: 17px;
+  min-width: 0;
+  font-size: 16px;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -297,8 +324,7 @@ select {
 }
 
 .crumb {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .crumb {
@@ -2272,6 +2298,13 @@ select {
 
   .brand {
     margin-bottom: 12px;
+  }
+
+  .brand-mark {
+    flex-basis: 62px;
+    width: 62px;
+    height: 38px;
+    border-radius: 8px;
   }
 
   .brand strong {

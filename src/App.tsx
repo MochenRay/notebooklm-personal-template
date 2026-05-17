@@ -9,7 +9,6 @@ import {
   HeartPulse,
   Home,
   Info,
-  Layers3,
   NotebookTabs,
   Search,
   Sparkles,
@@ -41,6 +40,9 @@ import type {
   VaultSession,
   VaultTopic,
 } from "./types";
+
+const PRODUCT_NAME = "NotebookLM星图";
+const brandLogoUrl = new URL("./assets/vault-viewer-logo.png", import.meta.url).href;
 
 const navItems = [
   { href: "/", label: "概览", icon: Home, match: ["overview"] },
@@ -161,6 +163,10 @@ function renderRoute(route: Route) {
   return <NotFound label="route" value={route.path} />;
 }
 
+function Breadcrumb({ current }: { current: string }) {
+  return <p className="crumb">{PRODUCT_NAME} / {current}</p>;
+}
+
 function Sidebar({ route, currentRoute }: { route: string; currentRoute: Route }) {
   const currentSession = currentRoute.name === "session" ? sessionById.get(currentRoute.id) : undefined;
 
@@ -168,11 +174,11 @@ function Sidebar({ route, currentRoute }: { route: string; currentRoute: Route }
     <aside className="sidebar" aria-label="Vault navigation">
       <a className="brand" href={href("/")}>
         <span className="brand-mark">
-          <Layers3 size={21} strokeWidth={1.8} />
+          <img src={brandLogoUrl} alt="" aria-hidden="true" />
         </span>
         <span>
-          <strong>Vault Viewer</strong>
-          <em>本机知识库工作台</em>
+          <strong>{PRODUCT_NAME}</strong>
+          <em>把学习沉淀接成星系</em>
         </span>
       </a>
       <nav className="nav-list">
@@ -286,7 +292,7 @@ function Overview() {
     <div className="page-stack">
       <header className="page-header overview-header">
         <div className="overview-copy">
-          <p className="crumb">本机知识库 / 概览</p>
+          <Breadcrumb current="概览" />
           <h1>个人知识库概览</h1>
           <p className="page-intent">
             NotebookLM 负责消化材料，本机知识库保存可追溯记录，最终沉淀成可复用知识卡片。
@@ -379,11 +385,13 @@ function ActionMetric({
   return (
     <a className={["action-metric", tone ?? ""].filter(Boolean).join(" ")} href={targetHref}>
       <span className="action-metric-icon">
-        <Icon size={18} strokeWidth={1.9} />
+        <Icon size={22} strokeWidth={1.85} />
       </span>
-      <span>
-        <em>{label}</em>
-        <strong>{value}</strong>
+      <span className="action-metric-copy">
+        <span className="action-metric-heading">
+          <em>{label}</em>
+          <strong>{value}</strong>
+        </span>
         <small>{detail}</small>
       </span>
       <ChevronRight size={17} strokeWidth={1.8} />
@@ -694,7 +702,7 @@ function SessionsPage() {
     <div className="page-stack sessions-page">
       <header className="page-header sessions-header">
         <div className="overview-copy">
-          <p className="crumb">Vault Viewer / 学习记录</p>
+          <Breadcrumb current="学习记录" />
           <h1>学习记录</h1>
           <p className="page-intent">{snapshot.sessionsCount} 条学习记录 / {latestMonth} / 本机知识库</p>
         </div>
@@ -802,7 +810,7 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
       <article className="reader-column">
         <header className="reader-header">
           <div className="overview-copy">
-            <p className="crumb">Vault Viewer / 学习记录</p>
+            <Breadcrumb current="学习记录" />
             <h1>{session.title}</h1>
             <p className="page-intent reader-meta">
               <CalendarDays size={17} /> {session.capturedAt}
@@ -929,7 +937,7 @@ function TopicsPage() {
     <div className="page-stack">
       <header className="page-header">
         <div className="overview-copy">
-          <p className="crumb">Vault Viewer / 主题地图</p>
+          <Breadcrumb current="主题地图" />
           <h1>主题地图</h1>
           <p className="page-intent">按每条学习记录里确认过的主题自动汇总，用来承接跨记录综合。</p>
         </div>
@@ -985,7 +993,7 @@ function TopicDetail({ topic }: { topic: VaultTopic }) {
     <div className="page-stack detail-narrow">
       <header className="page-header">
         <div className="overview-copy">
-          <p className="crumb">Vault Viewer / 主题地图</p>
+          <Breadcrumb current="主题地图" />
           <h1>{topic.title}</h1>
           <p className="page-intent">{topic.count} 条学习记录 / 最新 {topic.latestDate || "暂无"}</p>
         </div>
@@ -1021,7 +1029,7 @@ function HealthPage() {
     <div className="page-stack">
       <header className="page-header">
         <div className="overview-copy">
-          <p className="crumb">Vault Viewer / 健康检查</p>
+          <Breadcrumb current="健康检查" />
           <h1>Vault 健康检查</h1>
           <p className="page-intent">影响后续复盘的一致性检查，不以空泛健康分替代具体 finding。</p>
         </div>
@@ -1742,7 +1750,7 @@ function NotFound({ label, value }: { label: string; value: string }) {
     <div className="page-stack">
       <header className="page-header">
         <div className="overview-copy">
-          <p className="crumb">Vault Viewer / Missing</p>
+          <Breadcrumb current="未找到" />
           <h1>未找到 {label}</h1>
           <p className="page-intent">{value}</p>
         </div>
