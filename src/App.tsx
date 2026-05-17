@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   BookOpen,
   CalendarDays,
+  ChevronDown,
   ChevronRight,
   CircleHelp,
   FolderOpen,
@@ -9,7 +10,6 @@ import {
   HeartPulse,
   Home,
   Info,
-  NotebookTabs,
   Search,
   Sparkles,
   Tag,
@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { marked } from "marked";
 import ForceGraph2D, { type ForceGraphMethods, type GraphData, type LinkObject, type NodeObject } from "react-force-graph-2d";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
   allTopicIds,
   healthData,
@@ -92,6 +92,7 @@ type SessionRelatedItem = {
   overlap: number;
   sharedTopics: string[];
 };
+type CollapsibleHeadingLevel = 2 | 3 | 4 | 5 | 6;
 type MindmapLayoutNode = {
   childCount: number;
   depth: number;
@@ -113,6 +114,7 @@ type MindmapLayout = {
   width: number;
 };
 
+const EMPTY_COLLAPSED_IDS = new Set<string>();
 const GRAPH_DETAIL_RELATED_LIMIT = 5;
 const MARKDOWN_HEADING_TRANSLATIONS = new Map<string, string>([
   ["agent inference", "Agent 推断"],
@@ -232,9 +234,15 @@ function SessionContextPanel({ session }: { session: VaultSession }) {
   );
 }
 
-function SessionToc({ session }: { session: VaultSession }) {
-  const groups = useMemo(() => buildSessionTocGroups(session), [session]);
-
+function SessionToc({
+  groups,
+  onNavigate,
+  session,
+}: {
+  groups: SessionTocGroup[];
+  onNavigate: (id: string) => void;
+  session: VaultSession;
+}) {
   return (
     <nav className="session-toc" aria-label="本页目录">
       <p>本页目录</p>
@@ -242,15 +250,17 @@ function SessionToc({ session }: { session: VaultSession }) {
         const Icon = group.icon;
         return (
           <div className="toc-group" key={group.id}>
-            <a href={sessionSectionHref(session.id, group.id)}>
+            <a href={sessionSectionHref(session.id, group.id)} onClick={(event) => handleTocClick(event, group.id, onNavigate)}>
               <Icon size={17} />
               <span>{group.label}</span>
             </a>
-            <div className="toc-items">
-              {group.items.map((item) => (
-                <TocItemLink item={item} key={item.id} sessionId={session.id} />
-              ))}
-            </div>
+            {group.items.length ? (
+              <div className="toc-items">
+                {group.items.map((item) => (
+                  <TocItemLink item={item} key={item.id} onNavigate={onNavigate} sessionId={session.id} />
+                ))}
+              </div>
+            ) : null}
           </div>
         );
       })}
@@ -258,19 +268,36 @@ function SessionToc({ session }: { session: VaultSession }) {
   );
 }
 
-function TocItemLink({ item, sessionId, depth = 0 }: { item: SessionTocItem; sessionId: string; depth?: number }) {
+function TocItemLink({
+  depth = 0,
+  item,
+  onNavigate,
+  sessionId,
+}: {
+  depth?: number;
+  item: SessionTocItem;
+  onNavigate: (id: string) => void;
+  sessionId: string;
+}) {
   return (
     <div className={`toc-item depth-${depth}`}>
-      <a href={sessionSectionHref(sessionId, item.id)}>{item.label}</a>
+      <a href={sessionSectionHref(sessionId, item.id)} onClick={(event) => handleTocClick(event, item.id, onNavigate)}>
+        {item.label}
+      </a>
       {item.children?.length ? (
         <div className="toc-children">
           {item.children.map((child) => (
-            <TocItemLink depth={depth + 1} item={child} key={child.id} sessionId={sessionId} />
+            <TocItemLink depth={depth + 1} item={child} key={child.id} onNavigate={onNavigate} sessionId={sessionId} />
           ))}
         </div>
       ) : null}
     </div>
   );
+}
+
+function handleTocClick(event: MouseEvent<HTMLAnchorElement>, id: string, onNavigate: (id: string) => void) {
+  event.preventDefault();
+  onNavigate(id);
 }
 
 function Overview() {
@@ -798,12 +825,39 @@ function SessionCard({ session }: { session: VaultSession }) {
 
 function SessionDetail({ section, session }: { section?: string; session: VaultSession }) {
   const sourceLabel = sourceDomain(session.url) || session.sourceType || "来源";
+  const tocGroups = useMemo(() => buildSessionTocGroups(session), [session]);
+  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
+  const toggleCollapsed = (id: string) => {
+    setCollapsedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+  const expandToSection = (id: string) => {
+    setCollapsedIds((current) => expandTocPath(current, tocGroups, id));
+  };
+  const navigateToSection = (id: string) => {
+    expandToSection(id);
+    const targetHash = sessionSectionHref(session.id, id);
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+    window.setTimeout(() => scrollToPageSection(id), 0);
+  };
 
   useEffect(() => {
     if (!section) return;
-    const frame = window.requestAnimationFrame(() => scrollToPageSection(section));
+    setCollapsedIds((current) => expandTocPath(current, tocGroups, section));
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => scrollToPageSection(section));
+    });
     return () => window.cancelAnimationFrame(frame);
-  }, [section, session.id]);
+  }, [section, session.id, tocGroups]);
 
   return (
     <div className="session-detail">
@@ -825,95 +879,146 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
           </div>
         </header>
 
-        <SessionDetailOverview session={session} sourceLabel={sourceLabel} />
+        {session.practice.mindmap ? (
+          <CollapsibleBlock
+            bodyClassName="mindmap-overview-body"
+            collapsed={collapsedIds.has("mindmap")}
+            className="reader-section mindmap-overview-section"
+            id="mindmap"
+            level={2}
+            onToggle={toggleCollapsed}
+            title="思维导图"
+          >
+            <MindmapTree node={session.practice.mindmap} />
+          </CollapsibleBlock>
+        ) : null}
 
-        <section id="reading" className="reader-section">
-          <SectionTitle title="阅读" />
-          <div id="synthesis" className="reader-anchor">
-            <MarkdownView headingPrefix="synthesis" markdown={cleanSessionSynthesisMarkdown(session.content.synthesis)} />
-          </div>
-        </section>
+        <CollapsibleBlock
+          collapsed={collapsedIds.has("reading")}
+          className="reader-section"
+          id="reading"
+          level={2}
+          onToggle={toggleCollapsed}
+          title="阅读"
+        >
+          <MarkdownView
+            collapsedIds={collapsedIds}
+            headingBaseLevel={3}
+            headingPrefix="synthesis"
+            markdown={cleanSessionSynthesisMarkdown(session.content.synthesis)}
+            onToggleHeading={toggleCollapsed}
+          />
 
-        <section id="notebooklm" className="reader-section">
-          <SectionTitle title="NotebookLM 输出" />
-          <ContentBlock id="report" title="学习报告" markdown={session.content.report} />
-          <ContentBlock id="topology" title="知识拓扑" markdown={session.content.topology} />
-        </section>
+          <CollapsibleBlock
+            bodyClassName="notebooklm-output-body"
+            collapsed={collapsedIds.has("notebooklm")}
+            className="notebooklm-output-block"
+            id="notebooklm"
+            level={3}
+            onToggle={toggleCollapsed}
+            tag="div"
+            title="NotebookLM 输出"
+          >
+            <ContentBlock
+              collapsedIds={collapsedIds}
+              id="report"
+              markdown={session.content.report}
+              onToggleHeading={toggleCollapsed}
+              title="学习报告"
+            />
+            <ContentBlock
+              collapsedIds={collapsedIds}
+              id="topology"
+              markdown={session.content.topology}
+              onToggleHeading={toggleCollapsed}
+              title="知识拓扑"
+            />
+          </CollapsibleBlock>
+        </CollapsibleBlock>
 
-        <section id="practice" className="reader-section">
-          <SectionTitle title="练习" subtitle="闪卡 / 测验 / 思维导图" />
+        <CollapsibleBlock
+          collapsed={collapsedIds.has("practice")}
+          className="reader-section"
+          id="practice"
+          level={2}
+          onToggle={toggleCollapsed}
+          subtitle="闪卡 / 测验"
+          title="练习"
+        >
           <PracticePanel session={session} />
-        </section>
+        </CollapsibleBlock>
       </article>
       <aside className="reader-rail" aria-label="页面目录">
-        <SessionStatusPanel session={session} sourceLabel={sourceLabel} />
-        <SessionToc session={session} />
+        <SessionToc groups={tocGroups} onNavigate={navigateToSection} session={session} />
       </aside>
     </div>
   );
 }
 
-function SessionDetailOverview({ session, sourceLabel }: { session: VaultSession; sourceLabel: string }) {
+function CollapsibleBlock({
+  bodyClassName,
+  children,
+  className,
+  collapsed,
+  id,
+  level,
+  onToggle,
+  subtitle,
+  tag = "section",
+  title,
+}: {
+  bodyClassName?: string;
+  children: ReactNode;
+  className?: string;
+  collapsed: boolean;
+  id: string;
+  level: CollapsibleHeadingLevel;
+  onToggle: (id: string) => void;
+  subtitle?: string;
+  tag?: "div" | "section";
+  title: string;
+}) {
+  const Wrapper = tag;
+  const HeadingTag = headingTag(level);
+  const Icon = collapsed ? ChevronRight : ChevronDown;
   return (
-    <section className="session-overview-panel" aria-label="Session 摘要">
-      <div className="session-overview-copy">
-        <span>Session 摘要</span>
-        <p>{session.content.summary || session.whyItMatters || "暂无摘要。"}</p>
-        {session.whyItMatters ? <small>{session.whyItMatters}</small> : null}
+    <Wrapper className={["collapsible-block", collapsed ? "is-collapsed" : "", className ?? ""].filter(Boolean).join(" ")} id={id}>
+      <HeadingTag className="collapsible-title">
+        <button aria-expanded={!collapsed} className="collapsible-title-button" onClick={() => onToggle(id)} type="button">
+          <Icon aria-hidden="true" size={18} strokeWidth={2} />
+          <span>{title}</span>
+        </button>
+      </HeadingTag>
+      {subtitle ? <p className="collapsible-subtitle">{subtitle}</p> : null}
+      <div className={["collapsible-body", bodyClassName ?? ""].filter(Boolean).join(" ")} hidden={collapsed}>
+        {children}
       </div>
-      <div className="session-overview-facts">
-        <SessionMetaItem label="来源" value={sourceLabel} />
-        <SessionMetaItem label="素材" value={coverageLabel(session)} />
-        <SessionMetaItem label="状态" value={stageLabel(session.status.stage)} />
-      </div>
-    </section>
+    </Wrapper>
   );
 }
 
-function SessionStatusPanel({ session, sourceLabel }: { session: VaultSession; sourceLabel: string }) {
-  const artifactGap = artifactGapCount(session);
-  const healthTone = session.health.status === "ok" ? "good" : session.health.status;
-
+function ContentBlock({
+  collapsedIds,
+  id,
+  markdown,
+  onToggleHeading,
+  title,
+}: {
+  collapsedIds: Set<string>;
+  id: string;
+  markdown: string;
+  onToggleHeading: (id: string) => void;
+  title: string;
+}) {
   return (
-    <section className="reader-status-card" aria-label="Session 状态">
-      <p>Session 状态</p>
-      <div className="reader-status-head">
-        <span className={`status-badge ${healthTone}`}>{healthLabel(session)}</span>
-        <strong>{stageLabel(session.status.stage)}</strong>
-      </div>
-      <div className="reader-status-list">
-        <SessionMetaItem label="捕获日期" value={session.capturedAt} />
-        <SessionMetaItem label="来源" value={sourceLabel} />
-        <SessionMetaItem label="NotebookLM" value={coverageLabel(session)} />
-        <SessionMetaItem label="复读优先级" value={String(session.rereadScore)} />
-      </div>
-      {artifactGap ? <small>仍缺 {artifactGap} 份 NotebookLM 素材。</small> : <small>声明素材均已落地。</small>}
-      {session.url ? (
-        <a className="text-link" href={session.url} target="_blank" rel="noreferrer">
-          打开原始来源
-        </a>
-      ) : null}
-    </section>
-  );
-}
-
-function SessionMetaItem({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="session-meta-item">
-      <em>{label}</em>
-      <strong>{value || "暂无"}</strong>
-    </span>
-  );
-}
-
-function ContentBlock({ id, title, markdown }: { id: string; title: string; markdown: string }) {
-  return (
-    <section className="content-block reader-anchor" id={id}>
-      <div className="content-block-header">
-        <h3>{title}</h3>
-        <p>{firstPlainText(markdown) || "暂无内容"}</p>
-      </div>
-      <MarkdownView headingPrefix={id} markdown={markdown} />
+    <section className="content-block reader-anchor" id={id} aria-label={title}>
+      <MarkdownView
+        collapsedIds={collapsedIds}
+        headingBaseLevel={4}
+        headingPrefix={id}
+        markdown={markdown}
+        onToggleHeading={onToggleHeading}
+      />
     </section>
   );
 }
@@ -1055,19 +1160,12 @@ function HealthPage() {
 }
 
 function PracticePanel({ session }: { session: VaultSession }) {
-  const { flashcards, quiz, mindmap } = session.practice;
+  const { flashcards, quiz } = session.practice;
 
   return (
     <div className="practice-stack">
       {flashcards ? <FlashcardPractice artifact={flashcards} key={`${session.id}-flashcards`} /> : null}
       {quiz ? <QuizPractice artifact={quiz} key={`${session.id}-quiz`} /> : null}
-
-      {mindmap ? (
-        <section className="practice-block" id="mindmap">
-          <h3>{mindmap.name}</h3>
-          <MindmapTree node={mindmap} />
-        </section>
-      ) : null}
     </div>
   );
 }
@@ -1483,24 +1581,6 @@ function sessionNeedsAttention(session: VaultSession) {
   return session.health.status !== "ok" || !session.notebooklm.artifactCoverage.complete;
 }
 
-function artifactGapCount(session: VaultSession) {
-  const { declaredCount, presentCount } = session.notebooklm.artifactCoverage;
-  return Math.max(0, declaredCount - presentCount);
-}
-
-function coverageLabel(session: VaultSession) {
-  const { declaredCount, presentCount } = session.notebooklm.artifactCoverage;
-  return `${presentCount}/${declaredCount} 份`;
-}
-
-function healthLabel(session: VaultSession) {
-  if (session.health.status === "ok" && session.notebooklm.artifactCoverage.complete) return "健康";
-  if (!session.notebooklm.artifactCoverage.complete) return "素材缺口";
-  if (session.health.status === "warning") return "需复核";
-  if (session.health.status === "error") return "阻断";
-  return "需复核";
-}
-
 function formatMonthDay(date?: string) {
   if (!date) return "暂无";
   return date.length >= 10 ? date.slice(5, 10) : date;
@@ -1523,6 +1603,35 @@ function scrollToPageSection(id: string) {
 
 function sessionSectionHref(sessionId: string, sectionId: string) {
   return href(`/sessions/${sessionId}/${sectionId}`);
+}
+
+function expandTocPath(current: Set<string>, groups: SessionTocGroup[], targetId: string) {
+  const path = findTocPath(groups, targetId);
+  if (!path.length) return current;
+  let changed = false;
+  const next = new Set(current);
+  path.forEach((id) => {
+    if (next.delete(id)) changed = true;
+  });
+  return changed ? next : current;
+}
+
+function findTocPath(groups: SessionTocGroup[], targetId: string) {
+  for (const group of groups) {
+    if (group.id === targetId) return [group.id];
+    const itemPath = findTocItemPath(group.items, targetId);
+    if (itemPath.length) return [group.id, ...itemPath];
+  }
+  return [];
+}
+
+function findTocItemPath(items: SessionTocItem[], targetId: string): string[] {
+  for (const item of items) {
+    if (item.id === targetId) return [item.id];
+    const childPath = findTocItemPath(item.children ?? [], targetId);
+    if (childPath.length) return [item.id, ...childPath];
+  }
+  return [];
 }
 
 function strongestRelatedSessions(session: VaultSession): SessionRelatedItem[] {
@@ -1548,33 +1657,31 @@ function strongestRelatedSessions(session: VaultSession): SessionRelatedItem[] {
 }
 
 function buildSessionTocGroups(session: VaultSession): SessionTocGroup[] {
-  return [
+  const synthesisItems = buildMarkdownTocItems(cleanSessionSynthesisMarkdown(session.content.synthesis), "synthesis", 1, 3);
+  const reportItems = buildMarkdownTocItems(session.content.report, "report", 1, 3);
+  const topologyItems = buildMarkdownTocItems(session.content.topology, "topology", 1, 3);
+  const groups: SessionTocGroup[] = [];
+
+  if (session.practice.mindmap) {
+    groups.push({
+      id: "mindmap",
+      label: "思维导图",
+      icon: GitBranch,
+      items: [],
+    });
+  }
+
+  groups.push(
     {
       id: "reading",
       label: "阅读",
       icon: BookOpen,
       items: [
+        ...synthesisItems,
         {
-          id: "synthesis",
-          label: "知识卡片",
-          children: buildMarkdownTocItems(cleanSessionSynthesisMarkdown(session.content.synthesis), "synthesis", 2, 3),
-        },
-      ],
-    },
-    {
-      id: "notebooklm",
-      label: "NotebookLM 输出",
-      icon: NotebookTabs,
-      items: [
-        {
-          id: "report",
-          label: "学习报告",
-          children: buildMarkdownTocItems(session.content.report, "report", 2, 3),
-        },
-        {
-          id: "topology",
-          label: "知识拓扑",
-          children: buildMarkdownTocItems(session.content.topology, "topology", 2, 3),
+          id: "notebooklm",
+          label: "NotebookLM 输出",
+          children: [...reportItems, ...topologyItems],
         },
       ],
     },
@@ -1585,10 +1692,11 @@ function buildSessionTocGroups(session: VaultSession): SessionTocGroup[] {
       items: [
         { id: "flashcards", label: "闪卡" },
         { id: "quiz", label: "测验" },
-        { id: "mindmap", label: "思维导图" },
       ],
     },
-  ];
+  );
+
+  return groups;
 }
 
 function buildMarkdownTocItems(markdown: string, prefix: string, minLevel: number, maxLevel: number) {
@@ -1631,31 +1739,109 @@ function extractMarkdownHeadings(markdown: string, prefix: string) {
   return headings.filter((heading) => heading.label.length > 0);
 }
 
-function MarkdownView({ headingPrefix, markdown }: { headingPrefix?: string; markdown: string }) {
+function MarkdownView({
+  collapsedIds = EMPTY_COLLAPSED_IDS,
+  headingBaseLevel = 1,
+  headingPrefix,
+  markdown,
+  onToggleHeading,
+}: {
+  collapsedIds?: Set<string>;
+  headingBaseLevel?: number;
+  headingPrefix?: string;
+  markdown: string;
+  onToggleHeading?: (id: string) => void;
+}) {
+  const bodyRef = useRef<HTMLDivElement>(null);
   const html = useMemo(() => {
     const cleaned = stripFrontmatter(markdown).trim();
     const parsed = marked.parse(cleaned || "_暂无内容_", { async: false }) as string;
-    return headingPrefix ? addHeadingIds(parsed, headingPrefix) : parsed;
-  }, [headingPrefix, markdown]);
+    return headingPrefix ? addHeadingIds(parsed, headingPrefix, headingBaseLevel) : parsed;
+  }, [headingBaseLevel, headingPrefix, markdown]);
 
-  return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
+  useEffect(() => {
+    if (!onToggleHeading) return;
+    const body = bodyRef.current;
+    if (!body) return;
+    enhanceMarkdownHeadings(body, collapsedIds, onToggleHeading);
+  }, [collapsedIds, html, onToggleHeading]);
+
+  return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} ref={bodyRef} />;
 }
 
-function addHeadingIds(html: string, prefix: string) {
+function addHeadingIds(html: string, prefix: string, baseLevel = 1) {
   const template = document.createElement("template");
   template.innerHTML = html;
   template.content.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((heading, index) => {
-    heading.id = headingId(prefix, index + 1);
+    const sourceLevel = Number(heading.tagName.slice(1));
+    const targetLevel = Math.min(6, Math.max(1, baseLevel + sourceLevel - 1));
     const localized = localizedHeading(heading.textContent ?? "");
-    if (localized && localized !== heading.textContent?.trim()) {
-      heading.textContent = localized;
+    const target = document.createElement(`h${targetLevel}`);
+    Array.from(heading.attributes).forEach((attribute) => target.setAttribute(attribute.name, attribute.value));
+    while (heading.firstChild) target.appendChild(heading.firstChild);
+    heading.replaceWith(target);
+    target.id = headingId(prefix, index + 1);
+    if (localized && localized !== target.textContent?.trim()) {
+      target.textContent = localized;
     }
   });
   return template.innerHTML;
 }
 
+function enhanceMarkdownHeadings(
+  body: HTMLDivElement,
+  collapsedIds: Set<string>,
+  onToggleHeading: (id: string) => void,
+) {
+  const headings = Array.from(body.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6"));
+  headings.forEach((heading) => {
+    if (!heading.id) return;
+    heading.classList.add("collapsible-markdown-heading");
+    let button = heading.querySelector<HTMLButtonElement>(":scope > button.collapsible-markdown-button");
+    if (!button) {
+      const label = document.createElement("span");
+      label.className = "collapsible-markdown-label";
+      while (heading.firstChild) label.appendChild(heading.firstChild);
+      const arrow = document.createElement("span");
+      arrow.className = "collapsible-markdown-arrow";
+      arrow.setAttribute("aria-hidden", "true");
+      arrow.innerHTML = '<svg class="collapsible-markdown-arrow-icon" viewBox="0 0 12 12" focusable="false"><path d="M2.45 4.25 Q2.08 4.25 2.28 4.56 L5.45 8.18 Q6 8.82 6.55 8.18 L9.72 4.56 Q9.92 4.25 9.55 4.25 Z" /></svg>';
+      button = document.createElement("button");
+      button.className = "collapsible-markdown-button";
+      button.type = "button";
+      button.append(arrow, label);
+      heading.appendChild(button);
+    }
+    const collapsed = collapsedIds.has(heading.id);
+    button.setAttribute("aria-expanded", String(!collapsed));
+    const arrow = button.querySelector<HTMLElement>(".collapsible-markdown-arrow");
+    if (arrow) arrow.dataset.state = collapsed ? "collapsed" : "expanded";
+    button.onclick = () => onToggleHeading(heading.id);
+  });
+
+  let hiddenLevels: number[] = [];
+  Array.from(body.children).forEach((element) => {
+    const headingLevel = markdownHeadingLevel(element);
+    if (headingLevel) {
+      hiddenLevels = hiddenLevels.filter((level) => level < headingLevel);
+      element.toggleAttribute("hidden", hiddenLevels.length > 0);
+      if (element.id && collapsedIds.has(element.id)) hiddenLevels.push(headingLevel);
+      return;
+    }
+    element.toggleAttribute("hidden", hiddenLevels.length > 0);
+  });
+}
+
 function headingId(prefix: string, index: number) {
   return `${prefix}-heading-${index}`;
+}
+
+function headingTag(level: CollapsibleHeadingLevel) {
+  return `h${level}` as "h2" | "h3" | "h4" | "h5" | "h6";
+}
+
+function markdownHeadingLevel(element: Element) {
+  return /^H[1-6]$/.test(element.tagName) ? Number(element.tagName.slice(1)) : 0;
 }
 
 function stripFrontmatter(markdown: string) {
@@ -2250,24 +2436,6 @@ function sourceDomain(url: string) {
   } catch {
     return "";
   }
-}
-
-function stageLabel(stage: string) {
-  if (stage === "complete" || stage === "completed") return "已完成";
-  if (stage === "draft") return "草稿";
-  if (stage === "review") return "待复核";
-  if (stage === "synthesized") return "已沉淀";
-  return stage || "未标记";
-}
-
-function firstPlainText(markdown: string) {
-  return markdown
-    .replace(/^---[\s\S]*?---\s*/, "")
-    .replace(/^#+\s+/gm, "")
-    .replace(/[`*_>#-]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 140);
 }
 
 function markdownSection(markdown: string, heading: string) {
