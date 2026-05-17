@@ -268,78 +268,181 @@ function TocItemLink({ item, sessionId, depth = 0 }: { item: SessionTocItem; ses
 }
 
 function Overview() {
-  const recentSessions = sessions.slice(0, 6);
-  const topTopics = [...topics].sort((left, right) => right.count - left.count).slice(0, 7);
+  const [query, setQuery] = useState("");
+  const topTopics = useMemo(() => [...topics].sort(compareTopicsBySignal).slice(0, 7), []);
   const isEmpty = sessions.length === 0;
+  const filteredSessions = useMemo(
+    () => sessions.filter((session) => matchesOverviewSession(session, query)).slice(0, 8),
+    [query],
+  );
+  const filteredTopics = useMemo(
+    () => topics.filter((topic) => matchesOverviewTopic(topic, query)).sort(compareTopicsBySignal).slice(0, 8),
+    [query],
+  );
+  const latestSession = sessions[0];
+  const attentionCount = sessions.filter(sessionNeedsAttention).length + healthData.summary.totalFindings;
 
   return (
     <div className="page-stack">
-      <header className="page-header">
-        <p className="crumb">本机知识库 / 概览</p>
-        <h1>个人知识库概览</h1>
-        <p className="page-intent">
-          NotebookLM 负责消化材料，本机知识库保存可追溯记录，最终沉淀成可复用知识卡片。
-        </p>
+      <header className="page-header overview-header">
+        <div className="overview-copy">
+          <p className="crumb">本机知识库 / 概览</p>
+          <h1>个人知识库概览</h1>
+          <p className="page-intent">
+            NotebookLM 负责消化材料，本机知识库保存可追溯记录，最终沉淀成可复用知识卡片。
+          </p>
+        </div>
       </header>
 
-      <section className="metric-strip" aria-label="Vault metrics">
-        <Metric label="最新学习月份" value={latestMonth || "none"} />
-        <Metric label="学习记录" value={`${snapshot.sessionsCount} 条`} />
-        <Metric label="主题" value={`${snapshot.topicsCount} 个`} />
-        <Metric
-          label="健康提醒"
-          value={`${healthData.summary.totalFindings} 条`}
-          tone={healthData.summary.status === "ok" ? "good" : "warn"}
+      <section className="action-metric-grid" aria-label="Vault actions">
+        <ActionMetric
+          detail={latestSession ? `${latestSession.title} / ${latestSession.capturedAt}` : "尚无学习记录"}
+          href={latestSession ? href(`/sessions/${latestSession.id}`) : href("/sessions")}
+          icon={CalendarDays}
+          label="最新流入"
+          value={latestSession?.capturedAt ?? "none"}
         />
-        <Metric label="重点增长" value={topics[0]?.title ?? "none"} />
+        <ActionMetric
+          detail={`${snapshot.topicsCount} 个主题，${snapshot.sessionsCount} 条记录`}
+          href={href("/topics")}
+          icon={GitBranch}
+          label="可复用主题"
+          tone="good"
+          value={topTopics[0]?.title ?? "none"}
+        />
+        <ActionMetric
+          detail={healthData.summary.status === "ok" ? "当前无阻断项" : `${healthData.summary.totalFindings} 条 finding，${attentionCount} 个关注入口`}
+          href={href("/health")}
+          icon={AlertTriangle}
+          label="待处理状态"
+          tone={healthData.summary.status === "ok" ? "good" : "warn"}
+          value={healthData.summary.status === "ok" ? "正常" : "需复核"}
+        />
       </section>
+
+      <OverviewControls query={query} onQueryChange={setQuery} />
 
       {isEmpty ? (
         <EmptyVaultState />
       ) : (
-        <section className="workbench-board">
-          <KnowledgeGraphPanel />
+        <section className="workbench-board" id="overview-workbench">
+          <KnowledgeGraphPanel query={query} />
         </section>
       )}
 
-      {!isEmpty ? <div className="dashboard-grid">
+      {!isEmpty ? <div className="dashboard-grid overview-preview-grid">
         <section>
-          <SectionTitle title="学习流入" subtitle="最近沉淀到本机知识库的学习记录" />
-          <div className="compact-session-list flow-list">
-            {recentSessions.map((session) => (
-              <a className="compact-session-row" href={href(`/sessions/${session.id}`)} key={session.id}>
-                <span>
-                  <strong>{session.title}</strong>
-                  <small>{session.content.summary || session.whyItMatters}</small>
-                </span>
-                <em>{session.capturedAt}</em>
-              </a>
-            ))}
-          </div>
+          <SectionTitle title="主题入口" subtitle="按记录数、更新时间与健康状态组织入口。" />
+          <TopicEntryGrid topics={filteredTopics.slice(0, 7)} />
         </section>
 
         <section>
-          <SectionTitle title="主题增长" subtitle="按学习记录里标注的主题统计，越长代表出现越多。" />
-          <div className="growth-panel">
-            {topTopics.map((topic) => (
-              <a className="growth-row" href={href(`/topics/${topic.id}`)} key={topic.id}>
-                <span>{topic.title}</span>
-                <small>
-                  {topic.count} 条记录{topic.latestDate ? ` / 最新 ${topic.latestDate}` : ""}
-                </small>
-                <span className="growth-bar">
-                  <i style={{ width: `${Math.max(8, (topic.count / Math.max(1, topTopics[0].count)) * 100)}%` }} />
-                </span>
-              </a>
-            ))}
-          </div>
+          <SectionTitle title="学习流入" subtitle="最近沉淀到本机知识库的学习记录" />
+          <LearningSessionCards sessions={filteredSessions.slice(0, 4)} />
         </section>
       </div> : null}
     </div>
   );
 }
 
-function KnowledgeGraphPanel() {
+function OverviewControls({ onQueryChange, query }: { onQueryChange: (query: string) => void; query: string }) {
+  return (
+    <div className="overview-controls" aria-label="概览搜索">
+      <label className="search-box overview-search">
+        <Search size={18} />
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="搜索主题、记录、来源..."
+          aria-label="搜索概览"
+        />
+      </label>
+    </div>
+  );
+}
+
+function ActionMetric({
+  detail,
+  href: targetHref,
+  icon: Icon,
+  label,
+  tone,
+  value,
+}: {
+  detail: string;
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  tone?: "good" | "warn" | "danger";
+  value: string;
+}) {
+  return (
+    <a className={["action-metric", tone ?? ""].filter(Boolean).join(" ")} href={targetHref}>
+      <span className="action-metric-icon">
+        <Icon size={18} strokeWidth={1.9} />
+      </span>
+      <span>
+        <em>{label}</em>
+        <strong>{value}</strong>
+        <small>{detail}</small>
+      </span>
+      <ChevronRight size={17} strokeWidth={1.8} />
+    </a>
+  );
+}
+
+function TopicEntryGrid({ topics: items }: { topics: VaultTopic[] }) {
+  if (!items.length) return <EmptyList label="暂无匹配主题" detail="换一个关键词，或清空搜索。" />;
+  const maxCount = Math.max(1, ...items.map((topic) => topic.count));
+
+  return (
+    <div className="topic-entry-grid">
+      {items.map((topic, index) => (
+        <a className="topic-entry-card" href={href(`/topics/${topic.id}`)} key={topic.id}>
+          <span className="topic-entry-rank">{String(index + 1).padStart(2, "0")}</span>
+          <span className="topic-entry-title">
+            <Tag size={15} />
+            <strong>{topic.title}</strong>
+          </span>
+          <span className="topic-entry-footer">
+            <span className="topic-entry-meter">
+              <i style={{ width: `${Math.max(14, (topic.count / maxCount) * 100)}%` }} />
+            </span>
+            <small>{topic.count} 条</small>
+            <small>最新 {formatMonthDay(topic.latestDate)}</small>
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function LearningSessionCards({ sessions: items }: { sessions: VaultSession[] }) {
+  if (!items.length) return <EmptyList label="暂无匹配学习记录" detail="换一个关键词，或清空搜索。" />;
+
+  return (
+    <div className="session-card-stack">
+      {items.map((session) => (
+        <a className="session-preview-card" href={href(`/sessions/${session.id}`)} key={session.id}>
+          <span className="session-preview-meta">
+            <small>{formatMonthDay(session.capturedAt)}</small>
+            <small>{session.sourceType}</small>
+          </span>
+          <strong>{session.title}</strong>
+          <p>{session.content.summary || session.whyItMatters}</p>
+          <span className="record-chip-line">
+            {session.topics.approved.slice(0, 2).map((topicId) => (
+              <em key={topicId}>{topicTitle(topicId)}</em>
+            ))}
+            {session.topics.approved.length > 2 ? <em>+{session.topics.approved.length - 2}</em> : null}
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function KnowledgeGraphPanel({ query }: { query: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<ForceGraphMethods<KnowledgeGraphNode, KnowledgeGraphLink>>();
   const [size, setSize] = useState({ width: 900, height: 420 });
@@ -353,16 +456,26 @@ function KnowledgeGraphPanel() {
     () => layoutKnowledgeGraph(graphData, graphWidth, graphHeight),
     [graphData, graphHeight, graphWidth],
   );
+  const visibleGraphData = useMemo(
+    () => filterKnowledgeGraph(laidOutGraphData, query),
+    [laidOutGraphData, query],
+  );
   const nodeById = useMemo(
     () => new Map(laidOutGraphData.nodes.map((node) => [String(node.id), node])),
     [laidOutGraphData],
   );
+  const visibleNodeById = useMemo(
+    () => new Map(visibleGraphData.nodes.map((node) => [String(node.id), node])),
+    [visibleGraphData],
+  );
   const hoveredNode = hoveredId ? nodeById.get(hoveredId) ?? null : null;
   const selectedNode = selectedId ? nodeById.get(selectedId) ?? null : null;
-  const graphFocusNode = hoveredNode ?? selectedNode;
+  const visibleHoveredNode = hoveredId ? visibleNodeById.get(hoveredId) ?? null : null;
+  const visibleSelectedNode = selectedId ? visibleNodeById.get(selectedId) ?? null : null;
+  const graphFocusNode = visibleHoveredNode ?? visibleSelectedNode;
   const graphFocusState = useMemo(
-    () => buildKnowledgeGraphHoverState(laidOutGraphData, graphFocusNode),
-    [graphFocusNode?.id, laidOutGraphData],
+    () => buildKnowledgeGraphHoverState(visibleGraphData, graphFocusNode),
+    [graphFocusNode?.id, visibleGraphData],
   );
   const selectedState = useMemo(
     () => buildKnowledgeGraphHoverState(laidOutGraphData, selectedNode),
@@ -397,60 +510,66 @@ function KnowledgeGraphPanel() {
     };
     const timers = [650, 2200, 4200].map((delay) => window.setTimeout(fitGraph, delay));
     return () => timers.forEach((timer) => window.clearTimeout(timer));
-  }, [graphHeight, graphWidth, laidOutGraphData.nodes.length]);
+  }, [graphHeight, graphWidth, visibleGraphData.nodes.length]);
 
   return (
     <section className="graph-section">
       <SectionTitle title="知识图谱" subtitle="绿色是主题，灰色是学习记录；连线表示这条记录沉淀到了哪个主题里。" />
       <div className="workbench-panel graph-panel">
-      <div className="knowledge-graph-shell" ref={containerRef}>
-        <ForceGraph2D
-          ref={graphRef}
-          graphData={laidOutGraphData}
-          width={graphWidth}
-          height={graphHeight}
-          backgroundColor="#f7f8f4"
-          nodeCanvasObject={(node, context, globalScale) => drawKnowledgeNode(node, context, globalScale, graphFocusState, hoveredId)}
-          nodePointerAreaPaint={paintKnowledgeNodeHitArea}
-          nodeLabel={() => ""}
-          linkColor={(link) => graphLinkColor(link, graphFocusState)}
-          linkWidth={(link) => graphLinkWidth(link, graphFocusState)}
-          linkHoverPrecision={8}
-          d3VelocityDecay={0.28}
-          warmupTicks={50}
-          cooldownTicks={220}
-          minZoom={0.5}
-          maxZoom={6}
-          onEngineStop={() => graphRef.current?.zoomToFit(560, 30)}
-          onNodeHover={(node) => setHoveredId(node?.id ? String(node.id) : null)}
-          onNodeClick={(node) => {
-            setSelectedId(node.id ? String(node.id) : null);
-          }}
-        />
-        <div className="graph-legend" aria-label="图例">
-          <span><i className="topic-dot" />主题</span>
-          <span><i className="session-dot" />学习记录</span>
-          <span>{topics.length} 个主题 / {sessions.length} 条记录</span>
-          <span className="graph-legend-hint">点击点位查看详情</span>
+        <div className="graph-workbench">
+          <div className="knowledge-graph-shell" ref={containerRef}>
+            <ForceGraph2D
+              ref={graphRef}
+              graphData={visibleGraphData}
+              width={graphWidth}
+              height={graphHeight}
+              backgroundColor="#f7f8f4"
+              nodeCanvasObject={(node, context, globalScale) => drawKnowledgeNode(node, context, globalScale, graphFocusState, hoveredId)}
+              nodePointerAreaPaint={paintKnowledgeNodeHitArea}
+              nodeLabel={() => ""}
+              linkColor={(link) => graphLinkColor(link, graphFocusState)}
+              linkWidth={(link) => graphLinkWidth(link, graphFocusState)}
+              linkHoverPrecision={8}
+              d3VelocityDecay={0.28}
+              warmupTicks={50}
+              cooldownTicks={220}
+              minZoom={0.5}
+              maxZoom={6}
+              onEngineStop={() => graphRef.current?.zoomToFit(560, 30)}
+              onNodeHover={(node) => setHoveredId(node?.id ? String(node.id) : null)}
+              onNodeClick={(node) => {
+                setSelectedId(node.id ? String(node.id) : null);
+              }}
+            />
+            <div className="graph-legend" aria-label="图例">
+              <span><i className="topic-dot" />主题</span>
+              <span><i className="session-dot" />学习记录</span>
+              <span>{topics.length} 个主题 / {sessions.length} 条记录</span>
+            </div>
+          </div>
+          {selectedNode ? (
+            <GraphDetailCard
+              className="graph-inspector-card"
+              node={selectedNode}
+              related={selectedState.related}
+              onClose={() => setSelectedId(null)}
+            />
+          ) : (
+            <GraphEmptyInspector />
+          )}
         </div>
-        {selectedNode ? (
-          <GraphDetailCard
-            node={selectedNode}
-            related={selectedState.related}
-            onClose={() => setSelectedId(null)}
-          />
-        ) : null}
-      </div>
       </div>
     </section>
   );
 }
 
 function GraphDetailCard({
+  className,
   node,
   onClose,
   related,
 }: {
+  className?: string;
   node: NodeObject<KnowledgeGraphNode>;
   onClose: () => void;
   related: NodeObject<KnowledgeGraphNode>[];
@@ -459,41 +578,45 @@ function GraphDetailCard({
   const rawRelatedTopics = related.filter((item) => item.kind === "topic");
   const relatedSessions = sortGraphDetailNodes(rawRelatedSessions, node.kind === "topic" ? "topic-session-relevance" : "default");
   const relatedTopics = sortGraphDetailNodes(rawRelatedTopics, "default");
-  const sessionSortHelp =
-    node.kind === "topic"
-      ? `排序：关联主题越少，说明该学习记录越聚焦，和当前主题的关联度越高，越靠前；数量相同按学习记录日期倒序。最多显示前 ${GRAPH_DETAIL_RELATED_LIMIT} 条。`
-      : undefined;
 
   return (
-    <div className="graph-detail-card">
-      <div className="graph-detail-meta">
-        <span>{node.kind === "topic" ? "主题" : "学习记录"}</span>
+    <div className={["graph-detail-card", className ?? ""].filter(Boolean).join(" ")}>
+      <div className="graph-detail-head">
+        <span className="graph-detail-kind">{node.kind === "topic" ? "主题" : "学习记录"}</span>
         <button className="graph-close-button" type="button" onClick={onClose} aria-label="关闭图谱详情">
           <X size={13} strokeWidth={2.1} />
         </button>
-      </div>
-      <a className="graph-detail-title graph-detail-link" href={node.target}>
-        <strong>{node.label}</strong>
-        <small>
+        <a className="graph-detail-name" href={node.target}>{node.label}</a>
+        <p>
           {node.kind === "topic"
-            ? `${node.count} 条学习记录${node.date ? ` / 最新 ${node.date}` : ""}`
-            : node.date ?? "暂无日期"}
-        </small>
-      </a>
-      <GraphDetailList help={sessionSortHelp} title="关联学习记录" items={relatedSessions} totalCount={rawRelatedSessions.length} />
-      <GraphDetailList title="关联主题" items={relatedTopics} totalCount={rawRelatedTopics.length} />
+            ? `${node.count} 条学习记录${node.date ? ` / 最新 ${formatMonthDay(node.date)}` : ""}`
+            : formatMonthDay(node.date)}
+        </p>
+      </div>
+      <GraphDetailList title="关联学习记录" items={relatedSessions} totalCount={rawRelatedSessions.length} moreHref={node.target} />
+      <GraphDetailList title="关联主题" items={relatedTopics} totalCount={rawRelatedTopics.length} moreHref={node.target} />
     </div>
   );
 }
 
+function GraphEmptyInspector() {
+  return (
+    <aside className="graph-empty-inspector" aria-label="图谱详情">
+      <span><Info size={17} /></span>
+      <strong>选择一个节点</strong>
+      <p>点击图谱节点查看关联记录、主题、日期与可追溯入口。</p>
+    </aside>
+  );
+}
+
 function GraphDetailList({
-  help,
   items,
+  moreHref,
   title,
   totalCount,
 }: {
-  help?: string;
   items: NodeObject<KnowledgeGraphNode>[];
+  moreHref: string;
   title: string;
   totalCount: number;
 }) {
@@ -505,26 +628,24 @@ function GraphDetailList({
     <div className="graph-detail-list">
       <div className="graph-detail-list-title">
         <em>{title}</em>
-        {help ? (
-          <span className="graph-sort-help" aria-label={help} tabIndex={0}>
-            <Info size={12} strokeWidth={2} />
-            <span>{help}</span>
-          </span>
-        ) : null}
+        <small>{totalCount} 条</small>
       </div>
-      {visibleItems.map((item) => (
-        <a className="graph-detail-link" href={item.target} key={item.id}>
-          <span>{item.label}</span>
-          <small>
-            {item.kind === "topic"
-              ? `${item.count} 条学习记录${item.date ? ` / 最新 ${item.date}` : ""}`
-              : item.date ?? "暂无日期"}
-          </small>
-        </a>
-      ))}
-      {hiddenCount ? <p className="graph-detail-more">还有 {hiddenCount} 条未显示</p> : null}
+      <div className="graph-detail-items">
+        {visibleItems.map((item) => (
+          <a className="graph-detail-item" href={item.target} key={item.id}>
+            <span>{item.label}</span>
+            <small>{graphDetailItemMeta(item)}</small>
+          </a>
+        ))}
+      </div>
+      {hiddenCount ? <a className="graph-detail-more" href={moreHref}>还有 {hiddenCount} 条未显示，查看全部</a> : null}
     </div>
   );
+}
+
+function graphDetailItemMeta(item: NodeObject<KnowledgeGraphNode>) {
+  if (item.kind === "topic") return `${item.count} 条记录${item.date ? ` / ${formatMonthDay(item.date)}` : ""}`;
+  return formatMonthDay(item.date);
 }
 
 function sortGraphDetailNodes(
@@ -1252,6 +1373,47 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
   );
 }
 
+function matchesOverviewSession(session: VaultSession, query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+
+  const haystack = [
+    session.title,
+    session.originalTitle,
+    session.author,
+    session.sourceType,
+    session.content.summary,
+    session.whyItMatters,
+    ...session.tags,
+    ...session.topics.approved,
+    ...session.topics.approved.map(topicTitle),
+  ].join(" ").toLowerCase();
+  return haystack.includes(needle);
+}
+
+function matchesOverviewTopic(topic: VaultTopic, query: string) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return `${topic.id} ${topic.title} ${topic.summary}`.toLowerCase().includes(needle);
+}
+
+function sessionNeedsAttention(session: VaultSession) {
+  return session.health.status !== "ok" || !session.notebooklm.artifactCoverage.complete;
+}
+
+function formatMonthDay(date?: string) {
+  if (!date) return "暂无";
+  return date.length >= 10 ? date.slice(5, 10) : date;
+}
+
+function compareTopicsBySignal(left: VaultTopic, right: VaultTopic) {
+  const countDelta = right.count - left.count;
+  if (countDelta !== 0) return countDelta;
+  const dateDelta = (right.latestDate ?? "").localeCompare(left.latestDate ?? "");
+  if (dateDelta !== 0) return dateDelta;
+  return left.title.localeCompare(right.title, "zh-Hans-CN");
+}
+
 function scrollToPageSection(id: string) {
   const element = document.getElementById(id);
   if (!element) return;
@@ -1526,6 +1688,52 @@ function buildKnowledgeGraph(): GraphData<KnowledgeGraphNode, KnowledgeGraphLink
   );
 
   return { nodes: [...topicNodes, ...sessionNodes], links };
+}
+
+function filterKnowledgeGraph(
+  graphData: GraphData<KnowledgeGraphNode, KnowledgeGraphLink>,
+  query: string,
+): GraphData<KnowledgeGraphNode, KnowledgeGraphLink> {
+  const hasQuery = query.trim().length > 0;
+  if (!hasQuery) return graphData;
+  const matches = graphSearchMatches(graphData, query);
+  if (!matches.length) return { nodes: [], links: [] };
+
+  const includedIds = new Set(matches.map((node) => String(node.id)));
+  for (const link of graphData.links) {
+    const source = graphEndpointId(link.source);
+    const target = graphEndpointId(link.target);
+    if (includedIds.has(source) || includedIds.has(target)) {
+      includedIds.add(source);
+      includedIds.add(target);
+    }
+  }
+
+  return {
+    nodes: graphData.nodes.filter((node) => includedIds.has(String(node.id))),
+    links: graphData.links
+      .map((link) => ({ ...link }))
+      .filter((link) => includedIds.has(graphEndpointId(link.source)) && includedIds.has(graphEndpointId(link.target))),
+  };
+}
+
+function graphSearchMatches(
+  graphData: GraphData<KnowledgeGraphNode, KnowledgeGraphLink>,
+  query: string,
+) {
+  const needle = query.trim().toLowerCase();
+  return graphData.nodes
+    .filter((node) => {
+      if (!needle) return true;
+      return `${node.label} ${node.entityId} ${node.date ?? ""}`.toLowerCase().includes(needle);
+    })
+    .sort((left, right) => {
+      const countDelta = (right.count ?? 0) - (left.count ?? 0);
+      if (countDelta !== 0) return countDelta;
+      const dateDelta = (right.date ?? "").localeCompare(left.date ?? "");
+      if (dateDelta !== 0) return dateDelta;
+      return left.label.localeCompare(right.label, "zh-Hans-CN");
+    });
 }
 
 function layoutKnowledgeGraph(
