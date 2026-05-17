@@ -130,6 +130,27 @@ function firstParagraph(markdown) {
   return body ? body.replace(/\s+/g, " ").slice(0, 220) : "";
 }
 
+function hasCjk(text) {
+  return /[\u3400-\u9fff]/.test(text);
+}
+
+function markdownTitle(markdown, fallback) {
+  const match = stripFrontmatter(markdown).match(/^#\s+(.+)$/m);
+  return match?.[1]?.trim() || fallback;
+}
+
+function titleCaseTopicId(topicId) {
+  return topicId
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function sessionDisplayTitle(source, fallbackId) {
+  const titleZh = typeof source?.title_zh === "string" ? source.title_zh.trim() : "";
+  return titleZh || source?.title || fallbackId;
+}
+
 function walkSessionDirs() {
   if (!fs.existsSync(sessionRoot)) {
     return [];
@@ -289,6 +310,18 @@ function buildSessions(findings) {
     const capturedAt = String(source?.captured_at ?? "");
     const month = relativePath.split("/").slice(2, 4).join("/");
     const approvedTopics = Array.isArray(source?.topics?.approved) ? source.topics.approved : [];
+    const originalTitle = source?.title || "";
+    const titleZh = typeof source?.title_zh === "string" ? source.title_zh.trim() : "";
+
+    if (originalTitle && !titleZh && !hasCjk(originalTitle)) {
+      findings.push({
+        severity: "warning",
+        type: "missing_session_title_zh",
+        sessionId,
+        path: relativeToRoot(sourcePath),
+        message: "Session source.yaml should keep title and add title_zh for Chinese display.",
+      });
+    }
 
     for (const required of requiredSessionFiles) {
       const fullPath = path.join(sessionDir, required);
@@ -356,7 +389,9 @@ function buildSessions(findings) {
 
     sessions.push({
       id: sessionId,
-      title: source?.title || sessionId,
+      title: sessionDisplayTitle(source, sessionId),
+      originalTitle,
+      titleZh,
       author: source?.author || "",
       authorUrl: source?.author_url || "",
       capturedAt,
@@ -452,6 +487,16 @@ function buildTopics(sessions, approvedTopicMap, findings) {
     }
 
     const markdown = readTextIfExists(indexPath);
+    const topicTitle = markdownTitle(markdown, titleCaseTopicId(topicId));
+    if (topicTitle && !hasCjk(topicTitle)) {
+      findings.push({
+        severity: "warning",
+        type: "missing_topic_title_zh",
+        topicId,
+        path: relativeToRoot(indexPath),
+        message: "Topic index H1 should be a Chinese display title while the directory id stays stable.",
+      });
+    }
     const sessionIds = approvedTopicMap.get(topicId) || [];
     const relatedSessions = sessionIds
       .map((sessionId) => sessionById.get(sessionId))
@@ -502,10 +547,7 @@ function buildTopics(sessions, approvedTopicMap, findings) {
 
     topics.push({
       id: topicId,
-      title: topicId
-        .split("-")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" "),
+      title: topicTitle,
       path: relativeToRoot(indexPath),
       markdown: stripFrontmatter(markdown),
       sessionIds,
@@ -569,6 +611,8 @@ function buildHealth(findings, sessions, topics) {
       "broken_local_link",
       "artifact_missing_path",
       "artifact_schema_warning",
+      "missing_session_title_zh",
+      "missing_topic_title_zh",
     ],
     findings,
   };

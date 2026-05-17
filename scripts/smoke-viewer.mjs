@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -6,8 +6,6 @@ import { chromium } from "playwright";
 
 const root = process.cwd();
 const screenshotDir = path.join(root, ".viewer-data", "screenshots");
-const sessionId = "software-fundamentals-matter-more-than-ever-matt-pocock";
-const topicId = "ai-workflow-design";
 const chromeExecutable = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
 function findFreePort(start = 5173) {
@@ -49,6 +47,47 @@ async function assertNoHorizontalOverflow(page, label) {
   }
 }
 
+function readViewerJson(fileName) {
+  const filePath = path.join(root, ".viewer-data", fileName);
+  if (!existsSync(filePath)) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Unable to read ${fileName}: ${message}`);
+  }
+}
+
+function firstRecord(data, key) {
+  return Array.isArray(data?.[key]) && data[key].length > 0 ? data[key][0] : null;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function verifyEmptyVault(page, baseUrl) {
+  await page.getByRole("heading", { name: "本机知识库目前为空" }).waitFor();
+
+  await page.goto(`${baseUrl}/#/sessions`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "学习记录", exact: true }).waitFor();
+  await page.getByText("暂无学习记录").waitFor();
+
+  await page.goto(`${baseUrl}/#/topics`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "主题地图" }).waitFor();
+  await page.getByText("暂无匹配 topics").waitFor();
+
+  await page.goto(`${baseUrl}/#/health`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Vault 健康检查" }).waitFor();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${baseUrl}/#/sessions`, { waitUntil: "networkidle" });
+  await assertNoHorizontalOverflow(page, "mobile empty sessions");
+}
+
 async function main() {
   mkdirSync(screenshotDir, { recursive: true });
   const port = await findFreePort();
@@ -79,12 +118,30 @@ async function main() {
     await page.getByRole("heading", { name: "个人知识库概览" }).waitFor();
     await page.screenshot({ path: path.join(screenshotDir, "overview-desktop.png"), fullPage: true });
 
+    const sessionsJson = readViewerJson("sessions.json");
+    const topicsJson = readViewerJson("topics.json");
+    const firstSession = firstRecord(sessionsJson, "sessions");
+    const firstTopic = firstRecord(topicsJson, "topics");
+
+    if (!firstSession) {
+      await verifyEmptyVault(page, baseUrl);
+      await page.screenshot({ path: path.join(screenshotDir, "sessions-mobile.png"), fullPage: true });
+      await browser.close();
+      console.log(`smoke passed at ${baseUrl}`);
+      console.log(`screenshots: ${path.relative(root, screenshotDir)}`);
+      return;
+    }
+
+    const sessionId = String(firstSession.id);
+    const sessionTitle = String(firstSession.title || firstSession.titleZh || firstSession.originalTitle || sessionId);
+    const sessionSearchTerm = sessionTitle.slice(0, 16);
+
     await page.goto(`${baseUrl}/#/sessions`, { waitUntil: "networkidle" });
-    await page.getByPlaceholder("搜索学习记录...").fill("software");
-    await page.getByRole("heading", { name: /Software Fundamentals/ }).waitFor();
+    await page.getByPlaceholder("搜索学习记录...").fill(sessionSearchTerm);
+    await page.getByRole("heading", { name: new RegExp(escapeRegExp(sessionTitle)) }).waitFor();
 
     await page.goto(`${baseUrl}/#/sessions/${sessionId}`, { waitUntil: "networkidle" });
-    await page.locator(".reader-header h1").filter({ hasText: "Software Fundamentals" }).waitFor();
+    await page.locator(".reader-header h1").filter({ hasText: sessionTitle }).waitFor();
     const bodyText = await page.locator("body").innerText();
     if (bodyText.includes("origin: agent-synthesis") || bodyText.includes("card_type: reusable-knowledge")) {
       throw new Error("frontmatter is visible in session detail");
@@ -95,12 +152,15 @@ async function main() {
     }
     await page.screenshot({ path: path.join(screenshotDir, "session-detail-desktop.png"), fullPage: true });
 
-    await page.goto(`${baseUrl}/#/topics/${topicId}`, { waitUntil: "networkidle" });
-    await page.getByRole("heading", { name: topicId }).waitFor();
+    if (firstTopic) {
+      const topicId = String(firstTopic.id);
+      const topicTitle = String(firstTopic.title || topicId);
+      await page.goto(`${baseUrl}/#/topics/${topicId}`, { waitUntil: "networkidle" });
+      await page.getByRole("heading", { name: topicTitle }).waitFor();
+    }
 
     await page.goto(`${baseUrl}/#/health`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Vault 健康检查" }).waitFor();
-    await page.getByText("确认这条记录的 NotebookLM 来源").waitFor();
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${baseUrl}/#/sessions`, { waitUntil: "networkidle" });

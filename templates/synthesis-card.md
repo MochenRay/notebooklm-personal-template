@@ -39,11 +39,11 @@ publish_candidate: false
 
 ## 关联 topics
 
-### Proposed
+### 建议归类
 
 - 
 
-### Approved
+### 已确认
 
 - 默认同 Proposed；如用户提出异议，改写 approved 与 topic 索引。
 

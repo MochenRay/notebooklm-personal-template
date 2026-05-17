@@ -5,7 +5,8 @@
 - Session ID：
 - Source URL：
 - Source type：
-- 标题：
+- 原始标题：
+- 中文标题：
 - 作者/频道：
 - 捕获日期：
 - 为什么值得处理：
@@ -15,6 +16,7 @@
 - Profile：
 - Notebook ID：
 - Notebook title：
+- Notebook 中文标题：
 - Source IDs：
 - Primary source ID：
 - Source anomaly / cleanup log：
@@ -47,9 +49,9 @@
 
 ### Proposed
 
-| Topic | Confidence | Reason |
-| --- | --- | --- |
-| | | |
+| Topic ID | 中文标题 | Confidence | Reason |
+| --- | --- | --- | --- |
+| | | | |
 
 ### Approved
 

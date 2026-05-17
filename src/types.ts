@@ -20,6 +20,7 @@ export interface ArtifactCoverage {
 
 export interface TopicProposal {
   id: string;
+  title_zh?: string;
   confidence?: number;
   reason?: string;
 }
@@ -63,6 +64,8 @@ export interface PracticeArtifacts {
 export interface VaultSession {
   id: string;
   title: string;
+  originalTitle: string;
+  titleZh: string;
   author: string;
   authorUrl: string;
   capturedAt: string;
@@ -184,7 +187,7 @@ export interface HealthData {
 export type Route =
   | { name: "overview" }
   | { name: "sessions" }
-  | { name: "session"; id: string }
+  | { name: "session"; id: string; section?: string }
   | { name: "topics" }
   | { name: "topic"; id: string }
   | { name: "health" }

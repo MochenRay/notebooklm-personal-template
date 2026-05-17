@@ -29,6 +29,7 @@
 - 默认不生成 `publish/website.md`；发布投影需明确指令，后续可另抽发布 skill。
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
 - 项目采用 private living instance + public template。私有仓包含真实 `vault/`；公开模板仓只包含工具、文档、Viewer 与空 `vault/` 壳。
+- Vault Viewer 面向阅读默认显示中文标题：新入库视频必须在 `source.yaml` 写 `title_zh`，topic `index.md` 一级标题使用中文，英文 slug 只作稳定 id。
 - 先用 runbook 跑通 3 个样本，再决定是否抽成全局 skill。
 - 远期可探索 `Telegram -> OpenClaw -> NotebookLM Pipeline` 的异步入口，但不进入 MVP。
 
@@ -75,6 +76,7 @@
 - 默认不生成发布草稿，不自动发布。
 - `synthesis.md` 采用知识卡片结构。
 - private living instance 与 public template 分层；以后 merge 默认先进入私有仓，再筛选 public-safe 内容同步公开仓。
+- Viewer 标题本地化规则已冻结：session 用 `title_zh` 展示，topic 用中文一级标题展示；原始标题和 topic slug 保留为追溯字段。
 
 已产出：
 

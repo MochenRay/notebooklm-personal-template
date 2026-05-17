@@ -71,12 +71,20 @@ vault/
 
 每个 session 必有 `source.yaml`。
 
+标题字段分工：
+
+- `title` 保存来源原始标题。
+- `title_zh` 保存中文展示标题，Vault Viewer 默认读取它作为 session 标题。
+- `notebook_title` 保留 NotebookLM 远端标题；`notebook_title_zh` 保存本地中文展示标题。
+- topic id 保留英文 slug；`vault/topics/<topic-id>/index.md` 的一级标题写中文展示名。
+
 ```yaml
 id: youtube-ai-agents-memory
 captured_at: "2026-05-14"
 source_type: youtube
 url: "https://www.youtube.com/watch?v=..."
 title: ""
+title_zh: ""
 author: ""
 published_at: ""
 language: ""
@@ -85,6 +93,7 @@ why_it_matters: ""
 notebooklm:
   notebook_id: ""
   notebook_title: ""
+  notebook_title_zh: ""
   source_ids: []
   primary_source_id: ""
   source_note: ""
@@ -121,9 +130,11 @@ notebooklm:
 topics:
   proposed:
     - id: ai-agents
+      title_zh: AI 智能体
       confidence: 0.86
       reason: ""
     - id: personal-knowledge-system
+      title_zh: 个人知识系统
       confidence: 0.72
       reason: ""
   approved:
@@ -248,6 +259,8 @@ based_on:
 
 若 source 添加过程中出现失败后远端残留，fallback 成功后应自动删除可明确识别的失败残留 source。`source_ids` 保留清理后的远端实际 source 清单，`primary_source_id` 指向后续 query 与 artifacts 使用的 ready source，`source_note` 说明失败命令、fallback、被自动删除的 failed source id、删除命令与删除后验证结果。结构化字段写入 `cleanup.auto_deleted_failed_source_ids`；无法自动清理时写入 `cleanup.unresolved_source_ids` 与 `cleanup.cleanup_note`，并说明未自动删除原因。只有无法确认身份、不是本轮失败尝试产生、或可能被用户/其它流程使用的 source 才保留为异常。删除其它 source/notebook 仍是不可逆操作，必须等用户明确确认。
 
+`notebooklm/report.md`、`notebooklm/topology.md` 若经过 agent 整理供 Viewer 阅读，Markdown 标题默认使用中文结构标签，例如 `核心报告`、`知识拓扑`、`来源事实`、`NotebookLM 归纳`、`Agent 推断`。不要把 `Source facts`、`NotebookLM synthesis`、`Agent inference` 等英文结构标题写入最终展示文件。
+
 ## `notes/`
 
 保存过程与个人消化：
@@ -268,7 +281,7 @@ based_on:
 - 来源证据。
 - 反例与边界。
 - 可迁移用法。
-- 关联 topics。
+- 关联 topics（正文标题可写 `建议归类`、`已确认`；结构化字段仍保留 `proposed` / `approved`）。
 - 置信度。
 - 未解决问题。
 - 是否适合公开及理由。
@@ -325,6 +338,7 @@ topic 是漂移层，不是路径真相。agent 建议 topic 后默认写入 app
 notebooks:
   - notebook_id: ""
     title: "2026-05 - AI agent memory"
+    title_zh: "2026-05 - AI Agent 记忆"
     profile: learning
     status: active
     source_ids:

@@ -19,6 +19,7 @@
 - 添加 source 且 ready 后，默认生成正式 NotebookLM Studio artifacts：Study Guide report、10 题 quiz、hard flashcards、mind map，并下载到本地 vault。
 - 项目本身准备 Git 化与开源；私人 truth vault、raw transcript、媒体 artifact、凭证与本地运行态默认不进 Git。
 - `synthesis.md` 应偏未来复用的知识卡片，不是普通观看笔记。
+- Viewer 面向阅读默认显示中文标题；`source.yaml` 保留原始 `title`，同时写入 `title_zh`，topic 目录 id 保持稳定英文 slug，`index.md` 一级标题写中文。
 
 ## 推荐入口
 

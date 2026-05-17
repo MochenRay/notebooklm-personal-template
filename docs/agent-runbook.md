@@ -69,6 +69,7 @@
 - 默认一条 source 一个 Notebook。
 - 默认 topic 由 agent 提议并直接写入 approved，处理结束时展示给用户；用户有疑问或觉得不对再修订。
 - 默认 `synthesis.md` 写成知识卡片，不写成普通观看笔记。
+- 默认为新入库视频生成中文展示标题：`source.yaml` 保留原始 `title`，同时写 `title_zh`；Notebook title 可保留远端英文，但本地记录写 `notebook_title_zh`。
 
 ## 执行步骤
 
@@ -87,6 +88,14 @@ vault/sessions/YYYY/MM/<slug>/
 ```
 
 并写入 `source.yaml` 初稿。
+
+标题规则：
+
+- `title` 保存原始视频标题或来源标题。
+- `title_zh` 保存给 Viewer 展示的中文标题；英文视频也必须写，不等用户另行要求。
+- `notebooklm.notebook_title_zh` 保存本地可读的中文 notebook 标题。
+- `synthesis.md`、`notebooklm/report.md`、`notebooklm/topology.md` 的展示标题和结构标题默认使用中文；区分材料事实、NotebookLM 归纳、agent 推断和用户观点时，用 `来源事实`、`NotebookLM 归纳`、`Agent 推断`、`用户原话`，不要留下 `Source facts`、`NotebookLM synthesis`、`Agent inference` 这类英文结构标题。
+- 英文技术术语、原文概念、命令、路径和专有名词可保留在正文或 code span 中；但章节标题若是阅读结构而非原文术语，应翻成中文。
 
 ### 2. 创建 notebook
 
@@ -173,6 +182,7 @@ notes/questions.md
 ```
 
 若 `notebooklm/report.md` 或 `notebooklm/topology.md` 已由 agent 改写、结构化整理或补充推断，frontmatter 使用 `origin: notebooklm-with-agent-edit`；只有未改写原始导出才使用 `origin: notebooklm`。
+写入前检查一次 Markdown 标题：阅读型结构标题必须中文化，尤其是 `Source facts`、`NotebookLM synthesis`、`Agent inference`、`Core Report`、`Knowledge Topology`。
 
 ### 6. 写 synthesis
 
@@ -195,6 +205,7 @@ notes/questions.md
 topics:
   proposed:
     - id: "<topic-id>"
+      title_zh: "<中文主题名>"
       confidence: 0.0
       reason: "<why this topic fits>"
   approved:
@@ -207,6 +218,7 @@ topics:
 
 - 先读旧 `index.md` 与本 session 的 `synthesis.md`。
 - `## 关联 sessions` 可追加新 session 路径。
+- `# <topic title>` 一级标题必须是中文展示名；目录名仍保留英文 slug，不因改名搬迁 session。
 - `## 当前理解` 必须重写成跨 session 的完整论述，按概念关系组织共识、分歧、边界和可迁移原则。
 - 不要用“新 session 补充”“某某 session 进一步强调”“本 session 的核心范式”这类来源顺序作为正文结构。
 - 若新材料只是支持既有判断，合并到原观点；若与既有判断冲突，写入分歧或边界；若暂时无法整合，放入 `## 待合并 / 待拆分`，不要把未经消化的段落直接追加到 `## 当前理解`。

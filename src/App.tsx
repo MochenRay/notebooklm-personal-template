@@ -2,19 +2,20 @@ import {
   AlertTriangle,
   BookOpen,
   CalendarDays,
-  CheckCircle2,
   ChevronRight,
   CircleHelp,
-  FileText,
   FolderOpen,
   GitBranch,
   HeartPulse,
   Home,
+  Info,
   Layers3,
   NotebookTabs,
   Search,
   Sparkles,
   Tag,
+  X,
+  type LucideIcon,
 } from "lucide-react";
 import { marked } from "marked";
 import ForceGraph2D, { type ForceGraphMethods, type GraphData, type LinkObject, type NodeObject } from "react-force-graph-2d";
@@ -31,10 +32,11 @@ import {
 } from "./data";
 import { href, parseRoute } from "./router";
 import type {
+  FlashcardsArtifact,
   HealthFinding,
   HealthSeverity,
-  HealthStatus,
   MindmapNode,
+  QuizArtifact,
   Route,
   VaultSession,
   VaultTopic,
@@ -47,46 +49,18 @@ const navItems = [
   { href: "/health", label: "健康检查", icon: HeartPulse, match: ["health"] },
 ];
 
-const sectionGroups = [
-  {
-    id: "reading",
-    label: "阅读",
-    icon: BookOpen,
-    items: [{ id: "synthesis", label: "知识卡片" }],
-  },
-  {
-    id: "notebooklm",
-    label: "NotebookLM 输出",
-    icon: NotebookTabs,
-    items: [
-      { id: "report", label: "学习报告" },
-      { id: "topology", label: "知识拓扑" },
-    ],
-  },
-  {
-    id: "notes",
-    label: "笔记",
-    icon: FileText,
-    items: [
-      { id: "questions", label: "追问" },
-      { id: "my-notes", label: "我的笔记" },
-      { id: "debate", label: "辩论记录" },
-      { id: "process-log", label: "过程日志" },
-    ],
-  },
-  {
-    id: "practice",
-    label: "练习",
-    icon: Sparkles,
-    items: [
-      { id: "flashcards", label: "抽认卡" },
-      { id: "quiz", label: "测验" },
-      { id: "mindmap", label: "思维导图" },
-    ],
-  },
-];
-
-type SessionSort = "latest" | "reread" | "health" | "artifacts";
+type SessionSort = "latest" | "reread" | "artifacts";
+type SessionTocItem = {
+  id: string;
+  label: string;
+  children?: SessionTocItem[];
+};
+type SessionTocGroup = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  items: SessionTocItem[];
+};
 type KnowledgeNodeKind = "topic" | "session";
 type KnowledgeGraphNode = {
   id: string;
@@ -95,19 +69,62 @@ type KnowledgeGraphNode = {
   kind: KnowledgeNodeKind;
   count: number;
   date?: string;
-  health?: HealthStatus;
   target: string;
+  x?: number;
+  y?: number;
+  fx?: number;
+  fy?: number;
+  anchorX?: number;
+  anchorY?: number;
 };
 type KnowledgeGraphLink = {
   source: string;
   target: string;
 };
-
-const healthOrder: Record<HealthStatus, number> = {
-  error: 0,
-  warning: 1,
-  ok: 2,
+type KnowledgeGraphHoverState = {
+  nodeIds: Set<string>;
+  related: NodeObject<KnowledgeGraphNode>[];
 };
+type SessionRelatedItem = {
+  session: VaultSession;
+  overlap: number;
+  sharedTopics: string[];
+};
+type MindmapLayoutNode = {
+  childCount: number;
+  depth: number;
+  height: number;
+  id: string;
+  name: string;
+  width: number;
+  x: number;
+  y: number;
+};
+type MindmapLayoutLink = {
+  source: MindmapLayoutNode;
+  target: MindmapLayoutNode;
+};
+type MindmapLayout = {
+  height: number;
+  links: MindmapLayoutLink[];
+  nodes: MindmapLayoutNode[];
+  width: number;
+};
+
+const GRAPH_DETAIL_RELATED_LIMIT = 5;
+const MARKDOWN_HEADING_TRANSLATIONS = new Map<string, string>([
+  ["agent inference", "Agent 推断"],
+  ["approved", "已确认"],
+  ["core report", "核心报告"],
+  ["entropic loop", "熵增循环"],
+  ["knowledge topology", "知识拓扑"],
+  ["negentropic loop", "负熵循环"],
+  ["notebooklm report", "NotebookLM 学习报告"],
+  ["notebooklm synthesis", "NotebookLM 归纳"],
+  ["notebooklm-with-agent-edit", "NotebookLM 与 Agent 整理"],
+  ["proposed", "建议归类"],
+  ["source facts", "来源事实"],
+]);
 
 function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
@@ -135,7 +152,7 @@ function renderRoute(route: Route) {
   if (route.name === "health") return <HealthPage />;
   if (route.name === "session") {
     const session = sessionById.get(route.id);
-    return session ? <SessionDetail session={session} /> : <NotFound label="session" value={route.id} />;
+    return session ? <SessionDetail section={route.section} session={session} /> : <NotFound label="session" value={route.id} />;
   }
   if (route.name === "topic") {
     const topic = topicById.get(route.id);
@@ -145,7 +162,7 @@ function renderRoute(route: Route) {
 }
 
 function Sidebar({ route, currentRoute }: { route: string; currentRoute: Route }) {
-  const showSessionToc = currentRoute.name === "session" && sessionById.has(currentRoute.id);
+  const currentSession = currentRoute.name === "session" ? sessionById.get(currentRoute.id) : undefined;
 
   return (
     <aside className="sidebar" aria-label="Vault navigation">
@@ -170,32 +187,83 @@ function Sidebar({ route, currentRoute }: { route: string; currentRoute: Route }
           );
         })}
       </nav>
-      {showSessionToc ? <SessionToc /> : null}
+      {currentSession ? <SessionContextPanel session={currentSession} /> : null}
     </aside>
   );
 }
 
-function SessionToc() {
+function SessionContextPanel({ session }: { session: VaultSession }) {
+  const relatedSessions = useMemo(() => strongestRelatedSessions(session), [session]);
+
+  return (
+    <section className="session-context" aria-label="本 session 关联">
+      <p>本 session 关联</p>
+      <div className="context-group">
+        <h2>Topics</h2>
+        <div className="context-topic-list">
+          {session.topics.approved.map((topicId) => (
+            <a href={href(`/topics/${topicId}`)} key={topicId}>
+              <span>{topicTitle(topicId)}</span>
+              <small>{topicId}</small>
+            </a>
+          ))}
+        </div>
+      </div>
+      {relatedSessions.length ? (
+        <div className="context-group">
+          <h2>相关文章</h2>
+          <div className="context-session-list">
+            {relatedSessions.map((item) => (
+              <a href={href(`/sessions/${item.session.id}`)} key={item.session.id}>
+                <span>{item.session.title}</span>
+                <small>{item.overlap} 个共同 topic / {item.sharedTopics.map(topicTitle).join("、")}</small>
+              </a>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function SessionToc({ session }: { session: VaultSession }) {
+  const groups = useMemo(() => buildSessionTocGroups(session), [session]);
+
   return (
     <nav className="session-toc" aria-label="本页目录">
       <p>本页目录</p>
-      {sectionGroups.map((group) => {
+      {groups.map((group) => {
         const Icon = group.icon;
         return (
           <div className="toc-group" key={group.id}>
-            <a href={`#${group.id}`}>
+            <a href={sessionSectionHref(session.id, group.id)}>
               <Icon size={17} />
               <span>{group.label}</span>
             </a>
-            <div>
+            <div className="toc-items">
               {group.items.map((item) => (
-                <a href={`#${item.id}`} key={item.id}>{item.label}</a>
+                <TocItemLink item={item} key={item.id} sessionId={session.id} />
               ))}
             </div>
           </div>
         );
       })}
     </nav>
+  );
+}
+
+function TocItemLink({ item, sessionId, depth = 0 }: { item: SessionTocItem; sessionId: string; depth?: number }) {
+  return (
+    <div className={`toc-item depth-${depth}`}>
+      <a href={sessionSectionHref(sessionId, item.id)}>{item.label}</a>
+      {item.children?.length ? (
+        <div className="toc-children">
+          {item.children.map((child) => (
+            <TocItemLink depth={depth + 1} item={child} key={child.id} sessionId={sessionId} />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -223,7 +291,7 @@ function Overview() {
           value={`${healthData.summary.totalFindings} 条`}
           tone={healthData.summary.status === "ok" ? "good" : "warn"}
         />
-        <Metric label="重点增长" value={topics[0]?.id ?? "none"} />
+        <Metric label="重点增长" value={topics[0]?.title ?? "none"} />
       </section>
 
       {isEmpty ? (
@@ -245,7 +313,6 @@ function Overview() {
                   <small>{session.content.summary || session.whyItMatters}</small>
                 </span>
                 <em>{session.capturedAt}</em>
-                <StatusIcon status={session.health.status} />
               </a>
             ))}
           </div>
@@ -256,7 +323,7 @@ function Overview() {
           <div className="growth-panel">
             {topTopics.map((topic) => (
               <a className="growth-row" href={href(`/topics/${topic.id}`)} key={topic.id}>
-                <span>{topic.id}</span>
+                <span>{topic.title}</span>
                 <small>
                   {topic.count} 条记录{topic.latestDate ? ` / 最新 ${topic.latestDate}` : ""}
                 </small>
@@ -276,11 +343,31 @@ function KnowledgeGraphPanel() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const graphRef = useRef<ForceGraphMethods<KnowledgeGraphNode, KnowledgeGraphLink>>();
   const [size, setSize] = useState({ width: 900, height: 420 });
-  const [hovered, setHovered] = useState<NodeObject<KnowledgeGraphNode> | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const graphData = useMemo<GraphData<KnowledgeGraphNode, KnowledgeGraphLink>>(() => buildKnowledgeGraph(), []);
   const graphWidth = Math.max(320, Math.floor(size.width));
   const graphHeight = Math.max(320, Math.floor(size.height));
+  const laidOutGraphData = useMemo(
+    () => layoutKnowledgeGraph(graphData, graphWidth, graphHeight),
+    [graphData, graphHeight, graphWidth],
+  );
+  const nodeById = useMemo(
+    () => new Map(laidOutGraphData.nodes.map((node) => [String(node.id), node])),
+    [laidOutGraphData],
+  );
+  const hoveredNode = hoveredId ? nodeById.get(hoveredId) ?? null : null;
+  const selectedNode = selectedId ? nodeById.get(selectedId) ?? null : null;
+  const graphFocusNode = hoveredNode ?? selectedNode;
+  const graphFocusState = useMemo(
+    () => buildKnowledgeGraphHoverState(laidOutGraphData, graphFocusNode),
+    [graphFocusNode?.id, laidOutGraphData],
+  );
+  const selectedState = useMemo(
+    () => buildKnowledgeGraphHoverState(laidOutGraphData, selectedNode),
+    [laidOutGraphData, selectedNode?.id],
+  );
 
   useEffect(() => {
     const element = containerRef.current;
@@ -301,82 +388,185 @@ function KnowledgeGraphPanel() {
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      graphRef.current?.zoomToFit(450, 34);
-    }, 450);
-    return () => window.clearTimeout(timer);
-  }, [graphData.nodes.length, graphWidth]);
+    const graph = graphRef.current;
+    if (!graph) return;
+
+    configureKnowledgeGraphForces(graph, graphWidth, graphHeight);
+    const fitGraph = () => {
+      graph.zoomToFit(560, 30);
+    };
+    const timers = [650, 2200, 4200].map((delay) => window.setTimeout(fitGraph, delay));
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [graphHeight, graphWidth, laidOutGraphData.nodes.length]);
 
   return (
-    <div className="workbench-panel graph-panel">
+    <section className="graph-section">
       <SectionTitle title="知识图谱" subtitle="绿色是主题，灰色是学习记录；连线表示这条记录沉淀到了哪个主题里。" />
+      <div className="workbench-panel graph-panel">
       <div className="knowledge-graph-shell" ref={containerRef}>
         <ForceGraph2D
           ref={graphRef}
-          graphData={graphData}
+          graphData={laidOutGraphData}
           width={graphWidth}
           height={graphHeight}
-          backgroundColor="#070807"
-          nodeCanvasObject={drawKnowledgeNode}
+          backgroundColor="#f7f8f4"
+          nodeCanvasObject={(node, context, globalScale) => drawKnowledgeNode(node, context, globalScale, graphFocusState, hoveredId)}
           nodePointerAreaPaint={paintKnowledgeNodeHitArea}
-          nodeLabel={(node) => `${node.kind === "topic" ? "主题" : "学习记录"}：${node.label}`}
-          linkColor={() => "rgba(202, 207, 199, 0.24)"}
-          linkWidth={(link) => {
-            const target = typeof link.target === "object" ? link.target as NodeObject<KnowledgeGraphNode> : undefined;
-            return target?.kind === "topic" ? 1.1 : 0.8;
-          }}
-          d3VelocityDecay={0.36}
-          cooldownTicks={100}
+          nodeLabel={() => ""}
+          linkColor={(link) => graphLinkColor(link, graphFocusState)}
+          linkWidth={(link) => graphLinkWidth(link, graphFocusState)}
+          linkHoverPrecision={8}
+          d3VelocityDecay={0.28}
+          warmupTicks={50}
+          cooldownTicks={220}
           minZoom={0.5}
           maxZoom={6}
-          onNodeHover={(node) => setHovered(node)}
+          onEngineStop={() => graphRef.current?.zoomToFit(560, 30)}
+          onNodeHover={(node) => setHoveredId(node?.id ? String(node.id) : null)}
           onNodeClick={(node) => {
-            window.location.hash = node.target;
+            setSelectedId(node.id ? String(node.id) : null);
           }}
         />
         <div className="graph-legend" aria-label="图例">
           <span><i className="topic-dot" />主题</span>
           <span><i className="session-dot" />学习记录</span>
           <span>{topics.length} 个主题 / {sessions.length} 条记录</span>
+          <span className="graph-legend-hint">点击点位查看详情</span>
         </div>
-        {hovered ? (
-          <div className="graph-hover-card">
-            <span>{hovered.kind === "topic" ? "主题" : "学习记录"}</span>
-            <strong>{hovered.label}</strong>
-            <small>
-              {hovered.kind === "topic"
-                ? `${hovered.count} 条学习记录${hovered.date ? ` / 最新 ${hovered.date}` : ""}`
-                : `${hovered.date ?? "暂无日期"} / ${hovered.health === "ok" ? "健康正常" : "需要复核"}`}
-            </small>
-          </div>
+        {selectedNode ? (
+          <GraphDetailCard
+            node={selectedNode}
+            related={selectedState.related}
+            onClose={() => setSelectedId(null)}
+          />
         ) : null}
       </div>
+      </div>
+    </section>
+  );
+}
+
+function GraphDetailCard({
+  node,
+  onClose,
+  related,
+}: {
+  node: NodeObject<KnowledgeGraphNode>;
+  onClose: () => void;
+  related: NodeObject<KnowledgeGraphNode>[];
+}) {
+  const rawRelatedSessions = related.filter((item) => item.kind === "session");
+  const rawRelatedTopics = related.filter((item) => item.kind === "topic");
+  const relatedSessions = sortGraphDetailNodes(rawRelatedSessions, node.kind === "topic" ? "topic-session-relevance" : "default");
+  const relatedTopics = sortGraphDetailNodes(rawRelatedTopics, "default");
+  const sessionSortHelp =
+    node.kind === "topic"
+      ? `排序：关联主题越少，说明该学习记录越聚焦，和当前主题的关联度越高，越靠前；数量相同按学习记录日期倒序。最多显示前 ${GRAPH_DETAIL_RELATED_LIMIT} 条。`
+      : undefined;
+
+  return (
+    <div className="graph-detail-card">
+      <div className="graph-detail-meta">
+        <span>{node.kind === "topic" ? "主题" : "学习记录"}</span>
+        <button className="graph-close-button" type="button" onClick={onClose} aria-label="关闭图谱详情">
+          <X size={13} strokeWidth={2.1} />
+        </button>
+      </div>
+      <a className="graph-detail-title graph-detail-link" href={node.target}>
+        <strong>{node.label}</strong>
+        <small>
+          {node.kind === "topic"
+            ? `${node.count} 条学习记录${node.date ? ` / 最新 ${node.date}` : ""}`
+            : node.date ?? "暂无日期"}
+        </small>
+      </a>
+      <GraphDetailList help={sessionSortHelp} title="关联学习记录" items={relatedSessions} totalCount={rawRelatedSessions.length} />
+      <GraphDetailList title="关联主题" items={relatedTopics} totalCount={rawRelatedTopics.length} />
     </div>
   );
+}
+
+function GraphDetailList({
+  help,
+  items,
+  title,
+  totalCount,
+}: {
+  help?: string;
+  items: NodeObject<KnowledgeGraphNode>[];
+  title: string;
+  totalCount: number;
+}) {
+  if (!items.length) return null;
+  const visibleItems = items.slice(0, GRAPH_DETAIL_RELATED_LIMIT);
+  const hiddenCount = Math.max(0, totalCount - visibleItems.length);
+
+  return (
+    <div className="graph-detail-list">
+      <div className="graph-detail-list-title">
+        <em>{title}</em>
+        {help ? (
+          <span className="graph-sort-help" aria-label={help} tabIndex={0}>
+            <Info size={12} strokeWidth={2} />
+            <span>{help}</span>
+          </span>
+        ) : null}
+      </div>
+      {visibleItems.map((item) => (
+        <a className="graph-detail-link" href={item.target} key={item.id}>
+          <span>{item.label}</span>
+          <small>
+            {item.kind === "topic"
+              ? `${item.count} 条学习记录${item.date ? ` / 最新 ${item.date}` : ""}`
+              : item.date ?? "暂无日期"}
+          </small>
+        </a>
+      ))}
+      {hiddenCount ? <p className="graph-detail-more">还有 {hiddenCount} 条未显示</p> : null}
+    </div>
+  );
+}
+
+function sortGraphDetailNodes(
+  nodes: NodeObject<KnowledgeGraphNode>[],
+  mode: "default" | "topic-session-relevance",
+) {
+  return [...nodes].sort((left, right) => {
+    if (mode === "topic-session-relevance") {
+      const focusDelta = (left.count ?? 0) - (right.count ?? 0);
+      if (focusDelta !== 0) return focusDelta;
+      const dateDelta = (right.date ?? "").localeCompare(left.date ?? "");
+      if (dateDelta !== 0) return dateDelta;
+    }
+
+    const dateDelta = (right.date ?? "").localeCompare(left.date ?? "");
+    if (dateDelta !== 0) return dateDelta;
+    const countDelta = (right.count ?? 0) - (left.count ?? 0);
+    if (countDelta !== 0) return countDelta;
+    return left.label.localeCompare(right.label, "zh-Hans-CN");
+  });
 }
 
 function SessionsPage() {
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState("all");
-  const [health, setHealth] = useState("all");
   const [coverage, setCoverage] = useState("all");
   const [sort, setSort] = useState<SessionSort>("latest");
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const matches = sessions.filter((session) => {
-      const text = `${session.title} ${session.author} ${session.content.summary} ${session.topics.approved.join(" ")}`.toLowerCase();
+      const text = `${session.title} ${session.originalTitle} ${session.author} ${session.content.summary} ${session.topics.approved.join(" ")} ${session.topics.approved.map(topicTitle).join(" ")}`.toLowerCase();
       const matchesQuery = !needle || text.includes(needle);
       const matchesTopic = topic === "all" || session.topics.approved.includes(topic);
-      const matchesHealth = health === "all" || session.health.status === health;
       const matchesCoverage =
         coverage === "all" ||
         (coverage === "complete" && session.notebooklm.artifactCoverage.complete) ||
         (coverage === "incomplete" && !session.notebooklm.artifactCoverage.complete);
-      return matchesQuery && matchesTopic && matchesHealth && matchesCoverage;
+      return matchesQuery && matchesTopic && matchesCoverage;
     });
     return [...matches].sort((left, right) => compareSessions(left, right, sort));
-  }, [query, topic, health, coverage, sort]);
+  }, [query, topic, coverage, sort]);
 
   return (
     <div className="page-stack">
@@ -402,15 +592,9 @@ function SessionsPage() {
           <option value="all">主题</option>
           {allTopicIds.map((topicId) => (
             <option value={topicId} key={topicId}>
-              {topicId}
+              {topicTitle(topicId)}
             </option>
           ))}
-        </select>
-        <select value={health} onChange={(event) => setHealth(event.target.value)} aria-label="Health filter">
-          <option value="all">健康</option>
-          <option value="ok">OK</option>
-          <option value="warning">提醒</option>
-          <option value="error">错误</option>
         </select>
         <select value={coverage} onChange={(event) => setCoverage(event.target.value)} aria-label="Artifact filter">
           <option value="all">素材</option>
@@ -420,7 +604,6 @@ function SessionsPage() {
         <select value={sort} onChange={(event) => setSort(event.target.value as SessionSort)} aria-label="Sort sessions">
           <option value="latest">最新优先</option>
           <option value="reread">综合优先级</option>
-          <option value="health">健康动作优先</option>
           <option value="artifacts">素材缺口优先</option>
         </select>
         <span className="result-count">显示 {filtered.length} 条</span>
@@ -449,7 +632,6 @@ function SessionCard({ session }: { session: VaultSession }) {
             <FolderOpen size={15} /> {session.sourceType}
           </p>
         </div>
-        <StatusIcon status={session.health.status} />
       </a>
       {sourceMeta ? <p className="source-meta">{sourceMeta}</p> : null}
       <p className="session-summary">{session.content.summary || session.whyItMatters}</p>
@@ -461,28 +643,35 @@ function SessionCard({ session }: { session: VaultSession }) {
       </div>
       <div className="artifact-line">
         <span>{session.notebooklm.artifactCoverage.presentCount}/{session.notebooklm.artifactCoverage.declaredCount} 份素材</span>
-        <span>{session.status.publishCandidate ? "可作为发布候选" : stageLabel(session.status.stage)}</span>
-        <span>{sessionHealthLabel(session)}</span>
+        <span>{stageLabel(session.status.stage)}</span>
       </div>
     </article>
   );
 }
 
-function SessionDetail({ session }: { session: VaultSession }) {
+function SessionDetail({ section, session }: { section?: string; session: VaultSession }) {
+  const sourceLabel = sourceDomain(session.url) || session.sourceType || "来源";
+
+  useEffect(() => {
+    if (!section) return;
+    const frame = window.requestAnimationFrame(() => scrollToPageSection(section));
+    return () => window.cancelAnimationFrame(frame);
+  }, [section, session.id]);
+
   return (
     <div className="session-detail">
       <article className="reader-column">
         <div className="breadcrumbs">
           <a href={href("/sessions")}>学习记录</a>
           <ChevronRight size={14} />
-          <span>{session.id}</span>
+          <span>{session.title}</span>
         </div>
         <header className="reader-header">
           <h1>{session.title}</h1>
           <p>
             <CalendarDays size={17} /> {session.capturedAt}
             <span>/</span>
-            <FolderOpen size={17} /> {session.path}
+            <FolderOpen size={17} /> {sourceLabel}
           </p>
           <div className="pill-row">
             {session.topics.approved.map((topicId) => (
@@ -492,42 +681,39 @@ function SessionDetail({ session }: { session: VaultSession }) {
         </header>
 
         <section id="reading" className="reader-section">
-          <SectionTitle title="阅读" subtitle="synthesis.md" />
-          <MarkdownView markdown={session.content.synthesis} />
+          <SectionTitle title="阅读" />
+          <div id="synthesis" className="reader-anchor">
+            <MarkdownView headingPrefix="synthesis" markdown={cleanSessionSynthesisMarkdown(session.content.synthesis)} />
+          </div>
         </section>
 
         <section id="notebooklm" className="reader-section">
-          <SectionTitle title="NotebookLM 输出" subtitle="report.md / topology.md" />
-          <DisclosureBlock id="report" title="学习报告" markdown={session.content.report} />
-          <DisclosureBlock id="topology" title="知识拓扑" markdown={session.content.topology} />
-        </section>
-
-        <section id="notes" className="reader-section">
-          <SectionTitle title="笔记" subtitle="questions / my-notes / debate / process-log" />
-          <DisclosureBlock id="questions" title="追问" markdown={session.content.questions} />
-          <DisclosureBlock id="my-notes" title="我的笔记" markdown={session.content.myNotes} />
-          <DisclosureBlock id="debate" title="辩论记录" markdown={session.content.debate} />
-          <DisclosureBlock id="process-log" title="过程日志" markdown={session.content.processLog} />
+          <SectionTitle title="NotebookLM 输出" />
+          <ContentBlock id="report" title="学习报告" markdown={session.content.report} />
+          <ContentBlock id="topology" title="知识拓扑" markdown={session.content.topology} />
         </section>
 
         <section id="practice" className="reader-section">
-          <SectionTitle title="练习" subtitle="抽认卡 / 测验 / 思维导图" />
+          <SectionTitle title="练习" subtitle="闪卡 / 测验 / 思维导图" />
           <PracticePanel session={session} />
         </section>
       </article>
+      <aside className="reader-rail" aria-label="页面目录">
+        <SessionToc session={session} />
+      </aside>
     </div>
   );
 }
 
-function DisclosureBlock({ id, title, markdown }: { id: string; title: string; markdown: string }) {
+function ContentBlock({ id, title, markdown }: { id: string; title: string; markdown: string }) {
   return (
-    <details className="content-disclosure" id={id}>
-      <summary>
-        <span>{title}</span>
-        <small>{firstPlainText(markdown) || "暂无内容"}</small>
-      </summary>
-      <MarkdownView markdown={markdown} />
-    </details>
+    <section className="content-block reader-anchor" id={id}>
+      <div className="content-block-header">
+        <h3>{title}</h3>
+        <p>{firstPlainText(markdown) || "暂无内容"}</p>
+      </div>
+      <MarkdownView headingPrefix={id} markdown={markdown} />
+    </section>
   );
 }
 
@@ -559,8 +745,8 @@ function TopicsPage() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search topics..."
-            aria-label="Search topics"
+            placeholder="搜索主题..."
+            aria-label="搜索主题"
           />
         </label>
       </header>
@@ -589,9 +775,9 @@ function TopicCard({ topic }: { topic: VaultTopic }) {
   return (
     <a className="topic-card" href={href(`/topics/${topic.id}`)}>
       <span className="topic-count">{topic.count}</span>
-      <h2>{topic.id}</h2>
+      <h2>{topic.title}</h2>
       <p>{topic.summary || "暂无主题摘要。"}</p>
-      <small>{topic.latestDate || "暂无学习记录"} / {topic.count} 条学习记录</small>
+      <small>{topic.id} / {topic.latestDate || "暂无学习记录"} / {topic.count} 条学习记录</small>
     </a>
   );
 }
@@ -605,14 +791,14 @@ function TopicDetail({ topic }: { topic: VaultTopic }) {
       <div className="breadcrumbs">
         <a href={href("/topics")}>主题地图</a>
         <ChevronRight size={14} />
-        <span>{topic.id}</span>
+        <span>{topic.title}</span>
       </div>
       <header className="page-header">
-        <h1>{topic.id}</h1>
+        <h1>{topic.title}</h1>
         <p>{topic.count} 条学习记录 / 最新 {topic.latestDate || "暂无"}</p>
       </header>
       <section className="topic-understanding">
-        <SectionTitle title="当前理解" subtitle={topic.path} />
+        <SectionTitle title="当前理解" />
         <MarkdownView markdown={currentUnderstanding || topic.markdown} />
       </section>
       <section>
@@ -622,7 +808,6 @@ function TopicDetail({ topic }: { topic: VaultTopic }) {
             <a href={href(`/sessions/${session.id}`)} key={session.id}>
               <span>{session.title}</span>
               <small>{session.capturedAt}</small>
-              <StatusIcon status={session.healthStatus} />
             </a>
           ))}
         </div>
@@ -668,63 +853,11 @@ function HealthPage() {
 
 function PracticePanel({ session }: { session: VaultSession }) {
   const { flashcards, quiz, mindmap } = session.practice;
-  const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
-  const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
 
   return (
     <div className="practice-stack">
-      {flashcards ? (
-        <section className="practice-block" id="flashcards">
-          <h3>{flashcards.title}</h3>
-          <div className="flashcard-grid">
-            {flashcards.cards.slice(0, 12).map((card, index) => (
-              <button
-                className="flashcard"
-                key={`${card.front}-${index}`}
-                type="button"
-                aria-pressed={Boolean(flippedCards[index])}
-                onClick={() => setFlippedCards((current) => ({ ...current, [index]: !current[index] }))}
-              >
-                <span>{flippedCards[index] ? "Back" : "Front"}</span>
-                <strong>{flippedCards[index] ? card.back : card.front}</strong>
-                <small>{flippedCards[index] ? "Click to return" : "Click to reveal"}</small>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {quiz ? (
-        <section className="practice-block" id="quiz">
-          <h3>{quiz.title}</h3>
-          <div className="quiz-list">
-            {quiz.questions.slice(0, 6).map((question, index) => (
-              <article className="quiz-card" key={`${question.question}-${index}`}>
-                <h4>{index + 1}. {question.question}</h4>
-                {question.hint ? <p className="hint"><CircleHelp size={15} /> {question.hint}</p> : null}
-                <div className="answer-list">
-                  {question.answerOptions.map((option, answerIndex) => {
-                    const selected = selectedAnswers[index] === answerIndex;
-                    const revealed = selectedAnswers[index] !== undefined;
-                    return (
-                    <button
-                      className={`${option.isCorrect && revealed ? "answer correct" : "answer"} ${selected ? "selected" : ""}`}
-                      key={option.text}
-                      type="button"
-                      onClick={() => setSelectedAnswers((current) => ({ ...current, [index]: answerIndex }))}
-                    >
-                      <span>{revealed && option.isCorrect ? "Correct" : selected ? "Selected" : "Option"}</span>
-                      <p>{option.text}</p>
-                      {revealed && option.rationale ? <small>{option.rationale}</small> : null}
-                    </button>
-                    );
-                  })}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      {flashcards ? <FlashcardPractice artifact={flashcards} key={`${session.id}-flashcards`} /> : null}
+      {quiz ? <QuizPractice artifact={quiz} key={`${session.id}-quiz`} /> : null}
 
       {mindmap ? (
         <section className="practice-block" id="mindmap">
@@ -736,21 +869,341 @@ function PracticePanel({ session }: { session: VaultSession }) {
   );
 }
 
-function MindmapTree({ node }: { node: MindmapNode }) {
+function FlashcardPractice({ artifact }: { artifact: FlashcardsArtifact }) {
+  const [order, setOrder] = useState(() => shuffledIndices(artifact.cards.length));
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [revealed, setRevealed] = useState(false);
+  const [score, setScore] = useState({ correct: 0, wrong: 0 });
+  const currentCard = artifact.cards[order[currentIndex] ?? 0];
+
+  if (!currentCard) return null;
+
+  const goNext = () => {
+    setRevealed(false);
+    if (currentIndex + 1 >= order.length) {
+      setOrder(shuffledIndices(artifact.cards.length));
+      setCurrentIndex(0);
+      return;
+    }
+    setCurrentIndex((current) => current + 1);
+  };
+
+  const recordAnswer = (correct: boolean) => {
+    setScore((current) => ({
+      correct: current.correct + (correct ? 1 : 0),
+      wrong: current.wrong + (correct ? 0 : 1),
+    }));
+    goNext();
+  };
+
   return (
-    <ul className="mindmap-tree">
-      <li>
-        <span>{node.name}</span>
-        {node.children?.length ? (
-          <div>
-            {node.children.map((child, index) => (
-              <MindmapTree node={child} key={`${child.name}-${index}`} />
-            ))}
+    <section className="practice-block drill-block" id="flashcards">
+      <PracticeHeader title={flashcardTitle(artifact.title)} score={score} progress={`${currentIndex + 1}/${artifact.cards.length}`} />
+      <article className={`single-flashcard ${revealed ? "revealed" : ""}`}>
+        <span className="drill-kicker">题面</span>
+        <h4>{currentCard.front}</h4>
+        {revealed ? (
+          <div className="flashcard-answer">
+            <span>答案</span>
+            <p>{currentCard.back}</p>
+          </div>
+        ) : (
+          <p className="quiet-copy">先在心里作答，再显示答案。</p>
+        )}
+      </article>
+      <div className="drill-actions">
+        {!revealed ? (
+          <button className="drill-button primary" type="button" onClick={() => setRevealed(true)}>显示答案</button>
+        ) : (
+          <>
+            <button className="drill-button good" type="button" onClick={() => recordAnswer(true)}>答对</button>
+            <button className="drill-button danger" type="button" onClick={() => recordAnswer(false)}>答错</button>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function QuizPractice({ artifact }: { artifact: QuizArtifact }) {
+  const [order, setOrder] = useState(() => shuffledIndices(artifact.questions.length));
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
+  const [score, setScore] = useState({ correct: 0, wrong: 0 });
+  const currentQuestion = artifact.questions[order[currentIndex] ?? 0];
+
+  if (!currentQuestion) return null;
+
+  const correctOption = currentQuestion.answerOptions.find((option) => option.isCorrect);
+  const selectedOption = selectedAnswer === null ? null : currentQuestion.answerOptions[selectedAnswer];
+  const answered = selectedAnswer !== null;
+
+  const chooseAnswer = (answerIndex: number) => {
+    if (answered) return;
+    const isCorrect = Boolean(currentQuestion.answerOptions[answerIndex]?.isCorrect);
+    setSelectedAnswer(answerIndex);
+    setScore((current) => ({
+      correct: current.correct + (isCorrect ? 1 : 0),
+      wrong: current.wrong + (isCorrect ? 0 : 1),
+    }));
+  };
+
+  const goNext = () => {
+    setSelectedAnswer(null);
+    if (currentIndex + 1 >= order.length) {
+      setOrder(shuffledIndices(artifact.questions.length));
+      setCurrentIndex(0);
+      return;
+    }
+    setCurrentIndex((current) => current + 1);
+  };
+
+  return (
+    <section className="practice-block drill-block" id="quiz">
+      <PracticeHeader title={artifact.title} score={score} progress={`${currentIndex + 1}/${artifact.questions.length}`} />
+      <article className="quiz-panel">
+        <div className="quiz-question">
+          <span className="drill-kicker">题目</span>
+          <h4>{currentQuestion.question}</h4>
+          {currentQuestion.hint ? <p className="hint"><CircleHelp size={15} /> {currentQuestion.hint}</p> : null}
+        </div>
+        <div className="answer-list" aria-label="测验选项">
+          {currentQuestion.answerOptions.map((option, answerIndex) => {
+            const selected = selectedAnswer === answerIndex;
+            const className = [
+              "answer",
+              answered && option.isCorrect ? "correct" : "",
+              answered && selected && !option.isCorrect ? "wrong" : "",
+              selected ? "selected" : "",
+            ].filter(Boolean).join(" ");
+            return (
+              <button
+                className={className}
+                disabled={answered}
+                key={option.text}
+                type="button"
+                onClick={() => chooseAnswer(answerIndex)}
+              >
+                <span>{selected ? "你的选择" : `选项 ${answerIndex + 1}`}</span>
+                <p>{option.text}</p>
+              </button>
+            );
+          })}
+        </div>
+        {answered ? (
+          <div className={`quiz-feedback ${selectedOption?.isCorrect ? "correct" : "wrong"}`}>
+            <strong>{selectedOption?.isCorrect ? "答对了" : "答错了"}</strong>
+            <p>{selectedOption?.rationale || correctOption?.rationale || "已显示正确答案。"}</p>
           </div>
         ) : null}
-      </li>
-    </ul>
+      </article>
+      <div className="drill-actions">
+        <button className="drill-button" type="button" disabled={!answered} onClick={goNext}>下一题</button>
+      </div>
+    </section>
   );
+}
+
+function PracticeHeader({
+  progress,
+  score,
+  title,
+}: {
+  progress: string;
+  score: { correct: number; wrong: number };
+  title: string;
+}) {
+  return (
+    <div className="practice-header">
+      <div>
+        <h3>{title}</h3>
+        <small>{progress}</small>
+      </div>
+      <p aria-label="本次练习计分">
+        <span>对 {score.correct}</span>
+        <span>错 {score.wrong}</span>
+      </p>
+    </div>
+  );
+}
+
+function MindmapTree({ node }: { node: MindmapNode }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const layout = useMemo(() => buildMindmapLayout(node, expandedIds), [expandedIds, node]);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      viewport.scrollTop = 0;
+      viewport.scrollLeft = 0;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [layout.height, layout.width]);
+
+  const toggleNode = (id: string) => {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <div className="mindmap-viewport" ref={viewportRef} aria-label={`${node.name} 思维导图`}>
+      <div className="mindmap-tree-canvas" style={{ height: layout.height, minWidth: layout.width }}>
+        <svg className="mindmap-svg" height={layout.height} width={layout.width} aria-hidden="true">
+          {layout.links.map((link) => (
+            <path
+              className="mindmap-link"
+              d={mindmapPath(link)}
+              key={`${link.source.id}-${link.target.id}`}
+            />
+          ))}
+        </svg>
+        {layout.nodes.map((layoutNode) => (
+          <MindmapNodeCard
+            expanded={expandedIds.has(layoutNode.id)}
+            key={layoutNode.id}
+            node={layoutNode}
+            onToggle={toggleNode}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MindmapNodeCard({
+  expanded,
+  node,
+  onToggle,
+}: {
+  expanded: boolean;
+  node: MindmapLayoutNode;
+  onToggle: (id: string) => void;
+}) {
+  const hasChildren = node.childCount > 0;
+  const canToggle = hasChildren && node.depth > 0;
+  const displayExpanded = node.depth === 0 || expanded;
+  return (
+    <button
+      aria-expanded={hasChildren ? displayExpanded : undefined}
+      className={[
+        "mindmap-node-card",
+        node.depth === 0 ? "root" : hasChildren ? "branch" : "leaf",
+        hasChildren && displayExpanded ? "expanded" : "collapsed",
+      ].join(" ")}
+      disabled={!canToggle}
+      onClick={() => {
+        if (canToggle) onToggle(node.id);
+      }}
+      style={{
+        height: node.height,
+        left: node.x,
+        top: node.y - node.height / 2,
+        width: node.width,
+      }}
+      title={node.name}
+      type="button"
+    >
+      <span className="mindmap-node-toggle" aria-hidden="true">
+        {canToggle ? (expanded ? "-" : "+") : ""}
+      </span>
+      <span className="mindmap-node-name">{node.name}</span>
+      {hasChildren ? <span className="mindmap-node-count">{node.childCount}</span> : null}
+    </button>
+  );
+}
+
+function buildMindmapLayout(root: MindmapNode, expandedIds: Set<string>): MindmapLayout {
+  const nodes: MindmapLayoutNode[] = [];
+  const links: MindmapLayoutLink[] = [];
+  const padding = 28;
+  const rowGap = 12;
+  const baseRowHeight = 64;
+  const xGap = 292;
+  let maxX = 0;
+
+  const makeLayoutNode = (source: MindmapNode, pathParts: number[], depth: number, x: number, y: number): MindmapLayoutNode => {
+    const width = depth === 0 ? 238 : depth === 1 ? 232 : 244;
+    const height = source.children?.length ? 52 : 46;
+    const layoutNode: MindmapLayoutNode = {
+      childCount: source.children?.length ?? 0,
+      depth,
+      height,
+      id: mindmapNodeId(pathParts),
+      name: source.name,
+      width,
+      x,
+      y,
+    };
+    maxX = Math.max(maxX, x + width);
+    nodes.push(layoutNode);
+    return layoutNode;
+  };
+
+  const layoutSubtree = (source: MindmapNode, pathParts: number[], depth: number, x: number, top: number) => {
+    const id = mindmapNodeId(pathParts);
+    const children = source.children ?? [];
+    const expanded = depth === 0 || expandedIds.has(id);
+
+    if (!children.length || !expanded) {
+      return {
+        height: baseRowHeight,
+        node: makeLayoutNode(source, pathParts, depth, x, top + baseRowHeight / 2),
+      };
+    }
+
+    let cursor = top;
+    const childLayouts = children.map((child, index) => {
+      const childLayout = layoutSubtree(child, [...pathParts, index], depth + 1, x + xGap, cursor);
+      cursor += childLayout.height + rowGap;
+      return childLayout;
+    });
+    const childrenHeight = Math.max(baseRowHeight, cursor - top - rowGap);
+    const firstChild = childLayouts[0].node;
+    const lastChild = childLayouts[childLayouts.length - 1].node;
+    const nodeY = (firstChild.y + lastChild.y) / 2;
+    const currentNode = makeLayoutNode(source, pathParts, depth, x, nodeY);
+
+    childLayouts.forEach((childLayout) => {
+      links.push({ source: currentNode, target: childLayout.node });
+    });
+
+    return {
+      height: childrenHeight,
+      node: currentNode,
+    };
+  };
+
+  const rootLayout = layoutSubtree(root, [0], 0, padding, padding);
+  return {
+    height: Math.max(380, rootLayout.height + padding * 2),
+    links,
+    nodes,
+    width: Math.max(760, maxX + padding),
+  };
+}
+
+function mindmapPath(link: MindmapLayoutLink) {
+  const sourceX = link.source.x + link.source.width;
+  const sourceY = link.source.y;
+  const targetX = link.target.x - 10;
+  const targetY = link.target.y;
+  const middleX = sourceX + Math.max(48, (targetX - sourceX) * 0.45);
+
+  return `M${sourceX},${sourceY} C${middleX},${sourceY} ${middleX},${targetY} ${targetX},${targetY}`;
+}
+
+function mindmapNodeId(pathParts: number[]) {
+  return `mindmap-${pathParts.join("-")}`;
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone?: "good" | "warn" | "danger" }) {
@@ -799,27 +1252,217 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
   );
 }
 
-function MarkdownView({ markdown }: { markdown: string }) {
+function scrollToPageSection(id: string) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  const top = element.getBoundingClientRect().top + window.scrollY - 18;
+  window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+}
+
+function sessionSectionHref(sessionId: string, sectionId: string) {
+  return href(`/sessions/${sessionId}/${sectionId}`);
+}
+
+function strongestRelatedSessions(session: VaultSession): SessionRelatedItem[] {
+  const currentTopics = new Set(session.topics.approved);
+  if (!currentTopics.size) return [];
+
+  return sessions
+    .filter((candidate) => candidate.id !== session.id)
+    .map((candidate) => {
+      const sharedTopics = candidate.topics.approved.filter((topicId) => currentTopics.has(topicId));
+      return {
+        session: candidate,
+        overlap: sharedTopics.length,
+        sharedTopics,
+      };
+    })
+    .filter((item) => item.overlap > 0)
+    .sort((left, right) => {
+      if (right.overlap !== left.overlap) return right.overlap - left.overlap;
+      return latestFirst(left.session, right.session);
+    })
+    .slice(0, 5);
+}
+
+function buildSessionTocGroups(session: VaultSession): SessionTocGroup[] {
+  return [
+    {
+      id: "reading",
+      label: "阅读",
+      icon: BookOpen,
+      items: [
+        {
+          id: "synthesis",
+          label: "知识卡片",
+          children: buildMarkdownTocItems(cleanSessionSynthesisMarkdown(session.content.synthesis), "synthesis", 2, 3),
+        },
+      ],
+    },
+    {
+      id: "notebooklm",
+      label: "NotebookLM 输出",
+      icon: NotebookTabs,
+      items: [
+        {
+          id: "report",
+          label: "学习报告",
+          children: buildMarkdownTocItems(session.content.report, "report", 2, 3),
+        },
+        {
+          id: "topology",
+          label: "知识拓扑",
+          children: buildMarkdownTocItems(session.content.topology, "topology", 2, 3),
+        },
+      ],
+    },
+    {
+      id: "practice",
+      label: "练习",
+      icon: Sparkles,
+      items: [
+        { id: "flashcards", label: "闪卡" },
+        { id: "quiz", label: "测验" },
+        { id: "mindmap", label: "思维导图" },
+      ],
+    },
+  ];
+}
+
+function buildMarkdownTocItems(markdown: string, prefix: string, minLevel: number, maxLevel: number) {
+  const headings = extractMarkdownHeadings(markdown, prefix)
+    .filter((heading) => heading.level >= minLevel && heading.level <= maxLevel);
+  const roots: SessionTocItem[] = [];
+  const stack: Array<{ level: number; item: SessionTocItem }> = [];
+
+  for (const heading of headings) {
+    const item: SessionTocItem = { id: heading.id, label: heading.label };
+    while (stack.length && stack[stack.length - 1].level >= heading.level) stack.pop();
+    const parent = stack[stack.length - 1]?.item;
+    if (parent) {
+      parent.children = [...(parent.children ?? []), item];
+    } else {
+      roots.push(item);
+    }
+    stack.push({ level: heading.level, item });
+  }
+
+  return roots;
+}
+
+function extractMarkdownHeadings(markdown: string, prefix: string) {
+  const lines = stripFrontmatter(markdown).split("\n");
+  const headings: Array<{ id: string; label: string; level: number }> = [];
+  let headingIndex = 0;
+
+  for (const line of lines) {
+    const match = /^(#{1,6})\s+(.+?)\s*$/.exec(line.trim());
+    if (!match) continue;
+    headingIndex += 1;
+    headings.push({
+      id: headingId(prefix, headingIndex),
+      label: localizedHeading(plainHeading(match[2])),
+      level: match[1].length,
+    });
+  }
+
+  return headings.filter((heading) => heading.label.length > 0);
+}
+
+function MarkdownView({ headingPrefix, markdown }: { headingPrefix?: string; markdown: string }) {
   const html = useMemo(() => {
-    const cleaned = markdown.replace(/^---[\s\S]*?---\s*/, "").trim();
-    return marked.parse(cleaned || "_暂无内容_", { async: false }) as string;
-  }, [markdown]);
+    const cleaned = stripFrontmatter(markdown).trim();
+    const parsed = marked.parse(cleaned || "_暂无内容_", { async: false }) as string;
+    return headingPrefix ? addHeadingIds(parsed, headingPrefix) : parsed;
+  }, [headingPrefix, markdown]);
 
   return <div className="markdown-body" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function addHeadingIds(html: string, prefix: string) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  template.content.querySelectorAll("h1, h2, h3, h4, h5, h6").forEach((heading, index) => {
+    heading.id = headingId(prefix, index + 1);
+    const localized = localizedHeading(heading.textContent ?? "");
+    if (localized && localized !== heading.textContent?.trim()) {
+      heading.textContent = localized;
+    }
+  });
+  return template.innerHTML;
+}
+
+function headingId(prefix: string, index: number) {
+  return `${prefix}-heading-${index}`;
+}
+
+function stripFrontmatter(markdown: string) {
+  return markdown.replace(/^---[\s\S]*?---\s*/, "");
+}
+
+function plainHeading(markdown: string) {
+  return markdown
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[`*_~>#]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function localizedHeading(heading: string) {
+  return MARKDOWN_HEADING_TRANSLATIONS.get(heading.trim().toLowerCase()) ?? heading.trim();
+}
+
+function cleanSessionSynthesisMarkdown(markdown: string) {
+  return removeMarkdownSections(markdown, ["关联 topics", "关联 topic", "topics", "公开价值"]);
+}
+
+function removeMarkdownSections(markdown: string, headings: string[]) {
+  const normalizedHeadings = new Set(headings.map((heading) => heading.trim().toLowerCase()));
+  const lines = markdown.split("\n");
+  const kept: string[] = [];
+  let skipLevel = 0;
+
+  for (const line of lines) {
+    const headingMatch = /^(#{1,6})\s+(.+?)\s*$/.exec(line.trim());
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const heading = headingMatch[2].trim().toLowerCase();
+      if (skipLevel && level <= skipLevel) skipLevel = 0;
+      if (!skipLevel && normalizedHeadings.has(heading)) {
+        skipLevel = level;
+        continue;
+      }
+    }
+    if (!skipLevel) kept.push(line);
+  }
+
+  return kept.join("\n").trim();
+}
+
+function shuffledIndices(length: number) {
+  const indices = Array.from({ length }, (_, index) => index);
+  for (let index = indices.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [indices[index], indices[swapIndex]] = [indices[swapIndex], indices[index]];
+  }
+  return indices;
+}
+
+function flashcardTitle(title: string) {
+  const normalized = title.replace(/抽认卡/g, "闪卡").trim();
+  return normalized.includes("闪卡") ? normalized : `${normalized || "练习"}闪卡`;
 }
 
 function TopicPill({ id }: { id: string }) {
   return (
     <a className="topic-pill" href={href(`/topics/${id}`)}>
-      {id}
+      {topicTitle(id)}
     </a>
   );
 }
 
-function StatusIcon({ status }: { status: HealthStatus }) {
-  if (status === "ok") return <CheckCircle2 className="status-icon ok" size={19} aria-label="ok" />;
-  if (status === "warning") return <AlertTriangle className="status-icon warning" size={19} aria-label="warning" />;
-  return <AlertTriangle className="status-icon error" size={19} aria-label="error" />;
+function topicTitle(id: string) {
+  return topicById.get(id)?.title ?? id;
 }
 
 function FindingCard({ finding }: { finding: HealthFinding }) {
@@ -832,7 +1475,7 @@ function FindingCard({ finding }: { finding: HealthFinding }) {
       <p>{healthFindingDetail(finding)}</p>
       <p>
         {finding.sessionId ? `学习记录：${finding.sessionId}` : ""}
-        {finding.topicId ? `主题：${finding.topicId}` : ""}
+        {finding.topicId ? `主题：${topicTitle(finding.topicId)}` : ""}
       </p>
       {finding.path ? <small>{finding.path}</small> : null}
       <a className="text-link" href={findingHref(finding)}>查看相关内容</a>
@@ -857,7 +1500,7 @@ function buildKnowledgeGraph(): GraphData<KnowledgeGraphNode, KnowledgeGraphLink
   const topicNodes: KnowledgeGraphNode[] = topics.map((topic) => ({
     id: `topic:${topic.id}`,
     entityId: topic.id,
-    label: topic.id,
+    label: topic.title,
     kind: "topic",
     count: topic.count,
     date: topic.latestDate,
@@ -871,7 +1514,6 @@ function buildKnowledgeGraph(): GraphData<KnowledgeGraphNode, KnowledgeGraphLink
     kind: "session",
     count: session.topics.approved.length,
     date: session.capturedAt,
-    health: session.health.status,
     target: href(`/sessions/${session.id}`),
   }));
   const links: KnowledgeGraphLink[] = sessions.flatMap((session) =>
@@ -886,28 +1528,297 @@ function buildKnowledgeGraph(): GraphData<KnowledgeGraphNode, KnowledgeGraphLink
   return { nodes: [...topicNodes, ...sessionNodes], links };
 }
 
-function drawKnowledgeNode(node: NodeObject<KnowledgeGraphNode>, context: CanvasRenderingContext2D, globalScale: number) {
+function layoutKnowledgeGraph(
+  graphData: GraphData<KnowledgeGraphNode, KnowledgeGraphLink>,
+  width: number,
+  height: number,
+): GraphData<KnowledgeGraphNode, KnowledgeGraphLink> {
+  const nodeCount = graphData.nodes.length;
+  if (!nodeCount) return graphData;
+
+  const wide = width >= height;
+  const xSpan = Math.max(320, width * (wide ? 0.94 : 0.62));
+  const ySpan = Math.max(280, height * (wide ? 0.74 : 0.92));
+  const degreeById = new Map(graphData.nodes.map((node) => [String(node.id), 0]));
+  const linksByTopic = new Map<string, string[]>();
+
+  for (const link of graphData.links) {
+    const sourceId = graphEndpointId(link.source);
+    const targetId = graphEndpointId(link.target);
+    degreeById.set(sourceId, (degreeById.get(sourceId) ?? 0) + 1);
+    degreeById.set(targetId, (degreeById.get(targetId) ?? 0) + 1);
+    if (!linksByTopic.has(targetId)) linksByTopic.set(targetId, []);
+    linksByTopic.get(targetId)?.push(sourceId);
+  }
+
+  const sessionNodes = graphData.nodes
+    .filter((node) => node.kind === "session")
+    .sort((left, right) => (degreeById.get(String(right.id)) ?? 0) - (degreeById.get(String(left.id)) ?? 0) || left.label.localeCompare(right.label, "zh-Hans-CN"));
+  const sessionAnchors = new Map<string, { x: number; y: number }>();
+
+  sessionNodes.forEach((node, index) => {
+    const progress = sessionNodes.length <= 1 ? 0.5 : index / (sessionNodes.length - 1);
+    const wave = Math.sin((index + 1) * 1.9);
+    const x = wave * xSpan * (wide ? 0.18 : 0.28);
+    const y = (progress - 0.5) * ySpan * (wide ? 0.66 : 0.52) + Math.cos((index + 1) * 1.31) * 22;
+    sessionAnchors.set(String(node.id), { x, y });
+  });
+
+  const nodes = graphData.nodes.map((node) => {
+    const id = String(node.id);
+    const degree = degreeById.get(id) ?? 1;
+    const seed = hashUnit(id);
+    let anchorX = 0;
+    let anchorY = 0;
+
+    if (node.kind === "session") {
+      const anchor = sessionAnchors.get(id) ?? { x: 0, y: 0 };
+      anchorX = anchor.x;
+      anchorY = anchor.y;
+    } else {
+      const linkedSessions = linksByTopic.get(id) ?? [];
+      const base = linkedSessions.reduce(
+        (position, sessionId) => {
+          const anchor = sessionAnchors.get(sessionId);
+          if (!anchor) return position;
+          return { x: position.x + anchor.x, y: position.y + anchor.y, count: position.count + 1 };
+        },
+        { x: 0, y: 0, count: 0 },
+      );
+      const angle = seed * Math.PI * 2;
+      const orbit = 126 + degree * 18 + hashUnit(`${id}:orbit`) * 74;
+      anchorX = (base.count ? base.x / base.count : 0) + Math.cos(angle) * orbit * (wide ? 1.72 : 0.82);
+      anchorY = (base.count ? base.y / base.count : 0) + Math.sin(angle) * orbit * (wide ? 0.88 : 1.42);
+    }
+
+    anchorX = clamp(anchorX, -xSpan / 2, xSpan / 2);
+    anchorY = clamp(anchorY, -ySpan / 2, ySpan / 2);
+    const jitter = 20 + hashUnit(`${id}:jitter`) * 24;
+    const x = anchorX + Math.cos(seed * Math.PI * 12) * jitter;
+    const y = anchorY + Math.sin(seed * Math.PI * 10) * jitter;
+    return { ...node, x, y, anchorX, anchorY };
+  });
+
+  return {
+    nodes,
+    links: graphData.links.map((link) => ({ ...link })),
+  };
+}
+
+function configureKnowledgeGraphForces(
+  graph: ForceGraphMethods<KnowledgeGraphNode, KnowledgeGraphLink>,
+  width: number,
+  height: number,
+) {
+  const wide = width >= height;
+  const charge = graph.d3Force("charge") as
+    | { strength?: (value: number | ((node: NodeObject<KnowledgeGraphNode>) => number)) => unknown; distanceMin?: (value: number) => unknown; distanceMax?: (value: number) => unknown }
+    | undefined;
+  const link = graph.d3Force("link") as
+    | { distance?: (value: number | ((link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>) => number)) => unknown; strength?: (value: number | ((link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>) => number)) => unknown; iterations?: (value: number) => unknown }
+    | undefined;
+  const center = graph.d3Force("center") as
+    | { strength?: (value: number) => unknown }
+    | undefined;
+
+  charge?.strength?.((node: NodeObject<KnowledgeGraphNode>) => {
+    const degree = Math.max(1, node.count ?? 1);
+    return node.kind === "session" ? -360 - degree * 18 : -260 - degree * 13;
+  });
+  charge?.distanceMin?.(34);
+  charge?.distanceMax?.(Math.max(width, height) * 0.9);
+  link?.distance?.((link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>) => {
+    const source = graphEndpointNode(link.source);
+    const target = graphEndpointNode(link.target);
+    const degree = Math.max(source?.count ?? 1, target?.count ?? 1);
+    return (wide ? 126 : 96) + degree * (wide ? 13 : 9);
+  });
+  link?.strength?.((link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>) => {
+    const source = graphEndpointNode(link.source);
+    const target = graphEndpointNode(link.target);
+    const degree = Math.max(source?.count ?? 1, target?.count ?? 1);
+    return Math.max(0.03, 0.088 - degree * 0.006);
+  });
+  link?.iterations?.(2);
+  center?.strength?.(0.035);
+  graph.d3Force("soft-collide", createSoftCollisionForce());
+  graph.d3Force("organic-frame", createOrganicFrameForce(width, height));
+  graph.d3ReheatSimulation();
+}
+
+function createSoftCollisionForce() {
+  let graphNodes: NodeObject<KnowledgeGraphNode>[] = [];
+
+  const force = (alpha: number) => {
+    for (let leftIndex = 0; leftIndex < graphNodes.length; leftIndex += 1) {
+      const left = graphNodes[leftIndex];
+      for (let rightIndex = leftIndex + 1; rightIndex < graphNodes.length; rightIndex += 1) {
+        const right = graphNodes[rightIndex];
+        const dx = (right.x ?? 0) - (left.x ?? 0);
+        const dy = (right.y ?? 0) - (left.y ?? 0);
+        const distance = Math.hypot(dx, dy) || 1;
+        const minDistance = knowledgeNodeRadius(left) + knowledgeNodeRadius(right) + 20;
+        if (distance >= minDistance) continue;
+
+        const push = ((minDistance - distance) / distance) * alpha * 0.42;
+        const offsetX = dx * push;
+        const offsetY = dy * push;
+        left.vx = (left.vx ?? 0) - offsetX;
+        left.vy = (left.vy ?? 0) - offsetY;
+        right.vx = (right.vx ?? 0) + offsetX;
+        right.vy = (right.vy ?? 0) + offsetY;
+      }
+    }
+  };
+
+  force.initialize = (nodes: NodeObject<KnowledgeGraphNode>[]) => {
+    graphNodes = nodes;
+  };
+
+  return force;
+}
+
+function createOrganicFrameForce(width: number, height: number) {
+  let graphNodes: NodeObject<KnowledgeGraphNode>[] = [];
+  const wide = width >= height;
+  const xLimit = Math.max(160, width * (wide ? 0.45 : 0.36));
+  const yLimit = Math.max(150, height * (wide ? 0.36 : 0.46));
+
+  const force = (alpha: number) => {
+    for (const node of graphNodes) {
+      const x = node.x ?? 0;
+      const y = node.y ?? 0;
+      const anchorX = node.anchorX ?? 0;
+      const anchorY = node.anchorY ?? 0;
+      node.vx = (node.vx ?? 0) + (anchorX - x) * alpha * (node.kind === "session" ? 0.01 : 0.017);
+      node.vy = (node.vy ?? 0) + (anchorY - y) * alpha * (node.kind === "session" ? 0.01 : 0.017);
+
+      const outsideX = Math.max(0, Math.abs(x) - xLimit);
+      if (outsideX) node.vx = (node.vx ?? 0) - Math.sign(x) * outsideX * alpha * 0.08;
+      const outsideY = Math.max(0, Math.abs(y) - yLimit);
+      if (outsideY) node.vy = (node.vy ?? 0) - Math.sign(y) * outsideY * alpha * 0.08;
+    }
+  };
+
+  force.initialize = (nodes: NodeObject<KnowledgeGraphNode>[]) => {
+    graphNodes = nodes;
+  };
+
+  return force;
+}
+
+function hashUnit(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967295;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function buildKnowledgeGraphHoverState(
+  graphData: GraphData<KnowledgeGraphNode, KnowledgeGraphLink>,
+  hovered: NodeObject<KnowledgeGraphNode> | null,
+): KnowledgeGraphHoverState {
+  if (!hovered?.id) {
+    return { nodeIds: new Set(), related: [] };
+  }
+
+  const hoveredId = String(hovered.id);
+  const nodeIds = new Set<string>([hoveredId]);
+  const relatedIds: string[] = [];
+  const nodeById = new Map(graphData.nodes.map((node) => [node.id, node]));
+
+  for (const link of graphData.links) {
+    const source = graphEndpointId(link.source);
+    const target = graphEndpointId(link.target);
+    if (source === hoveredId && target) {
+      nodeIds.add(target);
+      relatedIds.push(target);
+    } else if (target === hoveredId && source) {
+      nodeIds.add(source);
+      relatedIds.push(source);
+    }
+  }
+
+  return {
+    nodeIds,
+    related: [...new Set(relatedIds)]
+      .map((id) => nodeById.get(id))
+      .filter((node): node is NodeObject<KnowledgeGraphNode> => Boolean(node))
+      .sort((left, right) => left.kind.localeCompare(right.kind) || left.label.localeCompare(right.label)),
+  };
+}
+
+function graphEndpointId(endpoint: string | number | NodeObject<KnowledgeGraphNode> | undefined) {
+  return typeof endpoint === "object" ? String(endpoint.id) : String(endpoint ?? "");
+}
+
+function graphEndpointNode(endpoint: string | number | NodeObject<KnowledgeGraphNode> | undefined) {
+  return typeof endpoint === "object" ? endpoint : undefined;
+}
+
+function graphLinkRelated(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>, hoverState: KnowledgeGraphHoverState) {
+  if (!hoverState.nodeIds.size) return false;
+  return hoverState.nodeIds.has(graphEndpointId(link.source)) && hoverState.nodeIds.has(graphEndpointId(link.target));
+}
+
+function graphLinkColor(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>, hoverState: KnowledgeGraphHoverState) {
+  if (!hoverState.nodeIds.size) return "rgba(90, 102, 94, 0.34)";
+  return graphLinkRelated(link, hoverState) ? "rgba(26, 124, 78, 0.72)" : "rgba(130, 136, 130, 0.12)";
+}
+
+function graphLinkWidth(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>, hoverState: KnowledgeGraphHoverState) {
+  if (!hoverState.nodeIds.size) return 1.05;
+  return graphLinkRelated(link, hoverState) ? 2.35 : 0.7;
+}
+
+function drawKnowledgeNode(
+  node: NodeObject<KnowledgeGraphNode>,
+  context: CanvasRenderingContext2D,
+  globalScale: number,
+  hoverState: KnowledgeGraphHoverState,
+  hoveredId: string | null,
+) {
   const radius = knowledgeNodeRadius(node);
   const x = node.x ?? 0;
   const y = node.y ?? 0;
   const isTopic = node.kind === "topic";
+  const isHovering = hoverState.nodeIds.size > 0;
+  const isRelated = !isHovering || hoverState.nodeIds.has(String(node.id));
+  const isSelected = isHovering && String(node.id) === [...hoverState.nodeIds][0];
+  const isHovered = hoveredId === String(node.id);
 
+  context.save();
+  context.globalAlpha = isRelated ? 1 : 0.22;
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
-  context.fillStyle = isTopic ? "#38d276" : node.health === "warning" ? "#d6b46a" : "#d9d9d3";
+  context.fillStyle = isTopic ? "#2fac69" : "#8fa0b3";
   context.fill();
 
-  context.lineWidth = isTopic ? 1.6 : 0.9;
-  context.strokeStyle = isTopic ? "rgba(105, 245, 158, 0.78)" : "rgba(255, 255, 255, 0.44)";
+  context.lineWidth = isSelected ? 3 : isRelated ? 1.6 : 0.9;
+  context.strokeStyle = isSelected
+    ? "#155b3c"
+    : isTopic
+      ? "rgba(39, 117, 76, 0.62)"
+      : "rgba(77, 91, 107, 0.5)";
   context.stroke();
 
-  if ((isTopic && (node.count > 1 || globalScale > 1.45)) || globalScale > 2.1) {
-    const label = isTopic ? truncateLabel(node.label, 26) : truncateLabel(node.label, 30);
-    context.font = `${Math.max(10, 12 / globalScale)}px Inter, sans-serif`;
-    context.textAlign = "center";
-    context.textBaseline = "top";
-    context.fillStyle = isTopic ? "rgba(218, 255, 232, 0.92)" : "rgba(236, 236, 230, 0.72)";
-    context.fillText(label, x, y + radius + 4);
+  if (isSelected) {
+    context.beginPath();
+    context.arc(x, y, radius + 5, 0, Math.PI * 2);
+    context.strokeStyle = "rgba(21, 91, 60, 0.3)";
+    context.lineWidth = 5;
+    context.stroke();
+  }
+  context.restore();
+
+  if (isHovering && isRelated) {
+    drawKnowledgeNodeLabel(node, context, globalScale, radius, isSelected || isHovered);
   }
 }
 
@@ -920,7 +1831,65 @@ function paintKnowledgeNodeHitArea(node: NodeObject<KnowledgeGraphNode>, color: 
 }
 
 function knowledgeNodeRadius(node: NodeObject<KnowledgeGraphNode>) {
-  return node.kind === "topic" ? 7 + Math.min(node.count, 6) * 2 : 4.5 + Math.min(node.count, 4);
+  if (node.kind === "topic") return 6.8 + Math.min(node.count, 6) * 2.15;
+  return 8.2 + Math.min(node.count, 4) * 0.25;
+}
+
+function drawKnowledgeNodeLabel(
+  node: NodeObject<KnowledgeGraphNode>,
+  context: CanvasRenderingContext2D,
+  globalScale: number,
+  radius: number,
+  prominent = false,
+) {
+  const label = truncateLabel(node.label, prominent ? (node.kind === "topic" ? 22 : 28) : (node.kind === "topic" ? 18 : 22));
+  const fontSize = (prominent ? 12 : 10.5) / globalScale;
+  const paddingX = (prominent ? 7 : 6) / globalScale;
+  const paddingY = (prominent ? 5 : 4) / globalScale;
+  const gap = (prominent ? 8 : 7) / globalScale;
+  const corner = 5 / globalScale;
+  const x = node.x ?? 0;
+  const y = node.y ?? 0;
+
+  context.save();
+  context.font = `${prominent ? 700 : 600} ${fontSize}px Inter, system-ui, sans-serif`;
+  const textWidth = context.measureText(label).width;
+  const boxWidth = textWidth + paddingX * 2;
+  const boxHeight = fontSize + paddingY * 2;
+  const boxX = x - boxWidth / 2;
+  const boxY = y - radius - gap - boxHeight;
+
+  context.globalAlpha = 1;
+  drawRoundedRect(context, boxX, boxY, boxWidth, boxHeight, corner);
+  context.fillStyle = prominent ? "rgba(255, 255, 252, 0.96)" : "rgba(255, 255, 252, 0.88)";
+  context.fill();
+  context.strokeStyle = prominent ? "rgba(70, 77, 70, 0.2)" : "rgba(70, 77, 70, 0.12)";
+  context.lineWidth = 1 / globalScale;
+  context.stroke();
+  context.fillStyle = prominent ? "#151713" : "#2f352f";
+  context.fillText(label, boxX + paddingX, boxY + paddingY + fontSize * 0.82);
+  context.restore();
+}
+
+function drawRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.lineTo(x + width - radius, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + radius);
+  context.lineTo(x + width, y + height - radius);
+  context.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+  context.lineTo(x + radius, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - radius);
+  context.lineTo(x, y + radius);
+  context.quadraticCurveTo(x, y, x + radius, y);
+  context.closePath();
 }
 
 function truncateLabel(label: string, maxLength: number) {
@@ -937,7 +1906,6 @@ function groupFindings(findings: HealthFinding[]) {
 
 function compareSessions(left: VaultSession, right: VaultSession, sort: SessionSort) {
   if (sort === "reread") return right.rereadScore - left.rereadScore || latestFirst(left, right);
-  if (sort === "health") return healthOrder[left.health.status] - healthOrder[right.health.status] || latestFirst(left, right);
   if (sort === "artifacts") {
     const leftGap = left.notebooklm.artifactCoverage.declaredCount - left.notebooklm.artifactCoverage.presentCount;
     const rightGap = right.notebooklm.artifactCoverage.declaredCount - right.notebooklm.artifactCoverage.presentCount;
@@ -956,11 +1924,6 @@ function sourceDomain(url: string) {
   } catch {
     return "";
   }
-}
-
-function sessionHealthLabel(session: VaultSession) {
-  if (session.health.status === "ok") return "健康正常";
-  return `${session.health.warnings + session.health.errors} 个健康动作`;
 }
 
 function stageLabel(stage: string) {
@@ -991,6 +1954,8 @@ function markdownSection(markdown: string, heading: string) {
 function healthActionLabel(finding: HealthFinding) {
   if (finding.type === "missing_primary_source_id_inferred") return "补一条来源编号，去掉自动推断";
   if (finding.type === "multiple_source_ids") return "确认这条记录的 NotebookLM 来源";
+  if (finding.type === "missing_session_title_zh") return "补齐学习记录中文标题";
+  if (finding.type === "missing_topic_title_zh") return "补齐主题中文标题";
   if (finding.type === "missing_session_reference") return "补上主题里的学习记录引用";
   if (finding.type === "artifact_missing_path") return "补齐缺失练习素材";
   if (finding.type === "broken_local_link") return "修复本地 Markdown 链接";
@@ -1000,6 +1965,8 @@ function healthActionLabel(finding: HealthFinding) {
 function healthGroupLabel(type: string) {
   if (type === "missing_primary_source_id_inferred") return "来源编号可补全";
   if (type === "multiple_source_ids") return "来源需要确认";
+  if (type === "missing_session_title_zh") return "中文学习记录标题缺失";
+  if (type === "missing_topic_title_zh") return "中文主题标题缺失";
   if (type === "missing_session_reference") return "主题关联缺失";
   if (type === "artifact_missing_path") return "素材路径缺失";
   if (type === "broken_local_link") return "本地链接失效";
@@ -1012,6 +1979,12 @@ function healthFindingDetail(finding: HealthFinding) {
   }
   if (finding.type === "multiple_source_ids") {
     return "这条记录关联了多个 NotebookLM 来源，复用前需要确认是否有同一次处理留下的残留来源。";
+  }
+  if (finding.type === "missing_session_title_zh") {
+    return "这条记录只有原始标题，缺少给 Viewer 展示用的中文标题。";
+  }
+  if (finding.type === "missing_topic_title_zh") {
+    return "这个主题索引的一级标题还不是中文；目录 id 可以保持英文 slug。";
   }
   return finding.message;
 }
