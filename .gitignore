@@ -1,6 +1,7 @@
 # Local learning outputs
 /private-vault/
 /.viewer-data/
+/.lazyweb/
 dist/
 node_modules/
 .vite/

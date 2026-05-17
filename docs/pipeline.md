@@ -75,6 +75,7 @@ vault/sessions/YYYY/MM/<slug>/
 - `title` 保留来源原始标题。
 - `title_zh` 写中文展示标题，供 Vault Viewer 和后续复盘默认使用。
 - `notebooklm.notebook_title_zh` 写中文 notebook 展示标题；远端 `notebook_title` 可继续保留创建时标题。
+- `why_it_matters` 写中文完整句，供 Vault Viewer 列表页直接展示；不要把英文 oEmbed 摘要或 agent 草稿原样写入该字段。
 
 ## 阶段 2：创建 NotebookLM notebook
 

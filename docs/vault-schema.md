@@ -76,6 +76,7 @@ vault/
 - `title` 保存来源原始标题。
 - `title_zh` 保存中文展示标题，Vault Viewer 默认读取它作为 session 标题。
 - `notebook_title` 保留 NotebookLM 远端标题；`notebook_title_zh` 保存本地中文展示标题。
+- `why_it_matters` 保存中文展示摘要，供列表页直接读取；英文原文标题、命令、路径和专有名词可保留，但不要整句英文。
 - topic id 保留英文 slug；`vault/topics/<topic-id>/index.md` 的一级标题写中文展示名。
 
 ```yaml

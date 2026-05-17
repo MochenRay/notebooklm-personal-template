@@ -94,6 +94,7 @@ vault/sessions/YYYY/MM/<slug>/
 - `title` 保存原始视频标题或来源标题。
 - `title_zh` 保存给 Viewer 展示的中文标题；英文视频也必须写，不等用户另行要求。
 - `notebooklm.notebook_title_zh` 保存本地可读的中文 notebook 标题。
+- `why_it_matters` 是 Viewer 列表摘要材料，必须写中文完整句；英文原文标题、技术术语和专有名词可保留，但不要整句英文。
 - `synthesis.md`、`notebooklm/report.md`、`notebooklm/topology.md` 的展示标题和结构标题默认使用中文；区分材料事实、NotebookLM 归纳、agent 推断和用户观点时，用 `来源事实`、`NotebookLM 归纳`、`Agent 推断`、`用户原话`，不要留下 `Source facts`、`NotebookLM synthesis`、`Agent inference` 这类英文结构标题。
 - 英文技术术语、原文概念、命令、路径和专有名词可保留在正文或 code span 中；但章节标题若是阅读结构而非原文术语，应翻成中文。
 

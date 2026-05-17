@@ -296,7 +296,7 @@ function Overview() {
 
       <section className="action-metric-grid" aria-label="Vault actions">
         <ActionMetric
-          detail={latestSession ? `${latestSession.title} / ${latestSession.capturedAt}` : "尚无学习记录"}
+          detail={latestSession ? latestSession.title : "尚无学习记录"}
           href={latestSession ? href(`/sessions/${latestSession.id}`) : href("/sessions")}
           icon={CalendarDays}
           label="最新流入"
@@ -688,15 +688,19 @@ function SessionsPage() {
     });
     return [...matches].sort((left, right) => compareSessions(left, right, sort));
   }, [query, topic, coverage, sort]);
+  const grouped = useMemo(() => groupSessionsByDate(filtered), [filtered]);
 
   return (
-    <div className="page-stack">
-      <header className="page-header with-search">
-        <div>
+    <div className="page-stack sessions-page">
+      <header className="page-header sessions-header">
+        <div className="overview-copy">
           <p className="crumb">Vault Viewer / 学习记录</p>
           <h1>学习记录</h1>
-          <p>{snapshot.sessionsCount} 条学习记录 / {latestMonth} / 本机知识库</p>
+          <p className="page-intent">{snapshot.sessionsCount} 条学习记录 / {latestMonth} / 本机知识库</p>
         </div>
+      </header>
+
+      <div className="overview-controls session-search-row" aria-label="学习记录搜索">
         <label className="search-box">
           <Search size={18} />
           <input
@@ -706,33 +710,52 @@ function SessionsPage() {
             aria-label="搜索学习记录"
           />
         </label>
-      </header>
+      </div>
 
       <div className="filter-bar" aria-label="Session filters">
-        <select value={topic} onChange={(event) => setTopic(event.target.value)} aria-label="Topic filter">
-          <option value="all">主题</option>
-          {allTopicIds.map((topicId) => (
-            <option value={topicId} key={topicId}>
-              {topicTitle(topicId)}
-            </option>
-          ))}
-        </select>
-        <select value={coverage} onChange={(event) => setCoverage(event.target.value)} aria-label="Artifact filter">
-          <option value="all">素材</option>
-          <option value="complete">完整</option>
-          <option value="incomplete">有缺口</option>
-        </select>
-        <select value={sort} onChange={(event) => setSort(event.target.value as SessionSort)} aria-label="Sort sessions">
-          <option value="latest">最新优先</option>
-          <option value="reread">综合优先级</option>
-          <option value="artifacts">素材缺口优先</option>
-        </select>
+        <label className="filter-control">
+          <span>主题</span>
+          <select value={topic} onChange={(event) => setTopic(event.target.value)} aria-label="Topic filter">
+            <option value="all">全部主题</option>
+            {allTopicIds.map((topicId) => (
+              <option value={topicId} key={topicId}>
+                {topicTitle(topicId)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="filter-control">
+          <span>素材</span>
+          <select value={coverage} onChange={(event) => setCoverage(event.target.value)} aria-label="Artifact filter">
+            <option value="all">全部素材</option>
+            <option value="complete">素材完整</option>
+            <option value="incomplete">有缺口</option>
+          </select>
+        </label>
+        <label className="filter-control">
+          <span>排序</span>
+          <select value={sort} onChange={(event) => setSort(event.target.value as SessionSort)} aria-label="Sort sessions">
+            <option value="latest">最新优先</option>
+            <option value="reread">综合优先级</option>
+            <option value="artifacts">素材缺口优先</option>
+          </select>
+        </label>
         <span className="result-count">显示 {filtered.length} 条</span>
       </div>
 
       <div className="session-list">
-        {filtered.length ? filtered.map((session) => (
-          <SessionCard session={session} key={session.id} />
+        {grouped.length ? grouped.map((group) => (
+          <section className="session-day-group" key={group.date}>
+            <div className="session-day-marker">
+              <strong>{formatMonthDay(group.date)}</strong>
+              <small>{group.date.slice(0, 4)}</small>
+            </div>
+            <div className="session-day-cards">
+              {group.sessions.map((session) => (
+                <SessionCard session={session} key={session.id} />
+              ))}
+            </div>
+          </section>
         )) : <EmptyList label="暂无学习记录" detail="本机知识库还没有匹配项。换一个关键词，或清空筛选条件。" />}
       </div>
     </div>
@@ -744,27 +767,22 @@ function SessionCard({ session }: { session: VaultSession }) {
 
   return (
     <article className="session-card">
-      <a href={href(`/sessions/${session.id}`)} className="card-main-link">
-        <div>
-          <h2>{session.title}</h2>
-          <p>
-            <CalendarDays size={15} /> {session.capturedAt}
-            <span> / </span>
-            <FolderOpen size={15} /> {session.sourceType}
-          </p>
+      <div className="session-card-body">
+        <a href={href(`/sessions/${session.id}`)} className="session-card-link">
+          <div className="card-main-link">
+            <h2>{session.title}</h2>
+            <p>
+              <FolderOpen size={15} /> {sourceMeta || session.sourceType}
+            </p>
+          </div>
+          <p className="session-summary">{session.content.summary || session.whyItMatters}</p>
+          {session.whyItMatters ? <p className="why-line">{session.whyItMatters}</p> : null}
+        </a>
+        <div className="pill-row compact-pill-row">
+          {session.topics.approved.map((topicId) => (
+            <TopicPill id={topicId} key={topicId} />
+          ))}
         </div>
-      </a>
-      {sourceMeta ? <p className="source-meta">{sourceMeta}</p> : null}
-      <p className="session-summary">{session.content.summary || session.whyItMatters}</p>
-      {session.whyItMatters ? <p className="why-line">{session.whyItMatters}</p> : null}
-      <div className="pill-row">
-        {session.topics.approved.map((topicId) => (
-          <TopicPill id={topicId} key={topicId} />
-        ))}
-      </div>
-      <div className="artifact-line">
-        <span>{session.notebooklm.artifactCoverage.presentCount}/{session.notebooklm.artifactCoverage.declaredCount} 份素材</span>
-        <span>{stageLabel(session.status.stage)}</span>
       </div>
     </article>
   );
@@ -782,24 +800,24 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
   return (
     <div className="session-detail">
       <article className="reader-column">
-        <div className="breadcrumbs">
-          <a href={href("/sessions")}>学习记录</a>
-          <ChevronRight size={14} />
-          <span>{session.title}</span>
-        </div>
         <header className="reader-header">
-          <h1>{session.title}</h1>
-          <p>
-            <CalendarDays size={17} /> {session.capturedAt}
-            <span>/</span>
-            <FolderOpen size={17} /> {sourceLabel}
-          </p>
+          <div className="overview-copy">
+            <p className="crumb">Vault Viewer / 学习记录</p>
+            <h1>{session.title}</h1>
+            <p className="page-intent reader-meta">
+              <CalendarDays size={17} /> {session.capturedAt}
+              <span>/</span>
+              <FolderOpen size={17} /> {sourceLabel}
+            </p>
+          </div>
           <div className="pill-row">
             {session.topics.approved.map((topicId) => (
               <TopicPill id={topicId} key={topicId} />
             ))}
           </div>
         </header>
+
+        <SessionDetailOverview session={session} sourceLabel={sourceLabel} />
 
         <section id="reading" className="reader-section">
           <SectionTitle title="阅读" />
@@ -820,9 +838,63 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
         </section>
       </article>
       <aside className="reader-rail" aria-label="页面目录">
+        <SessionStatusPanel session={session} sourceLabel={sourceLabel} />
         <SessionToc session={session} />
       </aside>
     </div>
+  );
+}
+
+function SessionDetailOverview({ session, sourceLabel }: { session: VaultSession; sourceLabel: string }) {
+  return (
+    <section className="session-overview-panel" aria-label="Session 摘要">
+      <div className="session-overview-copy">
+        <span>Session 摘要</span>
+        <p>{session.content.summary || session.whyItMatters || "暂无摘要。"}</p>
+        {session.whyItMatters ? <small>{session.whyItMatters}</small> : null}
+      </div>
+      <div className="session-overview-facts">
+        <SessionMetaItem label="来源" value={sourceLabel} />
+        <SessionMetaItem label="素材" value={coverageLabel(session)} />
+        <SessionMetaItem label="状态" value={stageLabel(session.status.stage)} />
+      </div>
+    </section>
+  );
+}
+
+function SessionStatusPanel({ session, sourceLabel }: { session: VaultSession; sourceLabel: string }) {
+  const artifactGap = artifactGapCount(session);
+  const healthTone = session.health.status === "ok" ? "good" : session.health.status;
+
+  return (
+    <section className="reader-status-card" aria-label="Session 状态">
+      <p>Session 状态</p>
+      <div className="reader-status-head">
+        <span className={`status-badge ${healthTone}`}>{healthLabel(session)}</span>
+        <strong>{stageLabel(session.status.stage)}</strong>
+      </div>
+      <div className="reader-status-list">
+        <SessionMetaItem label="捕获日期" value={session.capturedAt} />
+        <SessionMetaItem label="来源" value={sourceLabel} />
+        <SessionMetaItem label="NotebookLM" value={coverageLabel(session)} />
+        <SessionMetaItem label="复读优先级" value={String(session.rereadScore)} />
+      </div>
+      {artifactGap ? <small>仍缺 {artifactGap} 份 NotebookLM 素材。</small> : <small>声明素材均已落地。</small>}
+      {session.url ? (
+        <a className="text-link" href={session.url} target="_blank" rel="noreferrer">
+          打开原始来源
+        </a>
+      ) : null}
+    </section>
+  );
+}
+
+function SessionMetaItem({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="session-meta-item">
+      <em>{label}</em>
+      <strong>{value || "暂无"}</strong>
+    </span>
   );
 }
 
@@ -855,12 +927,14 @@ function TopicsPage() {
 
   return (
     <div className="page-stack">
-      <header className="page-header with-search">
-        <div>
+      <header className="page-header">
+        <div className="overview-copy">
           <p className="crumb">Vault Viewer / 主题地图</p>
           <h1>主题地图</h1>
-          <p>按每条学习记录里确认过的主题自动汇总，用来承接跨记录综合。</p>
+          <p className="page-intent">按每条学习记录里确认过的主题自动汇总，用来承接跨记录综合。</p>
         </div>
+      </header>
+      <div className="overview-controls session-search-row" aria-label="主题搜索">
         <label className="search-box">
           <Search size={18} />
           <input
@@ -870,7 +944,7 @@ function TopicsPage() {
             aria-label="搜索主题"
           />
         </label>
-      </header>
+      </div>
       <div className="topic-map-strip">
         <Metric label="当前显示" value={`${filteredTopics.length}/${topics.length}`} />
         <Metric label="核心主题" value={`${topics.filter((topic) => topic.count > 1).length}`} />
@@ -909,14 +983,12 @@ function TopicDetail({ topic }: { topic: VaultTopic }) {
 
   return (
     <div className="page-stack detail-narrow">
-      <div className="breadcrumbs">
-        <a href={href("/topics")}>主题地图</a>
-        <ChevronRight size={14} />
-        <span>{topic.title}</span>
-      </div>
       <header className="page-header">
-        <h1>{topic.title}</h1>
-        <p>{topic.count} 条学习记录 / 最新 {topic.latestDate || "暂无"}</p>
+        <div className="overview-copy">
+          <p className="crumb">Vault Viewer / 主题地图</p>
+          <h1>{topic.title}</h1>
+          <p className="page-intent">{topic.count} 条学习记录 / 最新 {topic.latestDate || "暂无"}</p>
+        </div>
       </header>
       <section className="topic-understanding">
         <SectionTitle title="当前理解" />
@@ -948,9 +1020,11 @@ function HealthPage() {
   return (
     <div className="page-stack">
       <header className="page-header">
-        <p className="crumb">Vault Viewer / 健康检查</p>
-        <h1>Vault 健康检查</h1>
-        <p>影响后续复盘的一致性检查，不以空泛健康分替代具体 finding。</p>
+        <div className="overview-copy">
+          <p className="crumb">Vault Viewer / 健康检查</p>
+          <h1>Vault 健康检查</h1>
+          <p className="page-intent">影响后续复盘的一致性检查，不以空泛健康分替代具体 finding。</p>
+        </div>
       </header>
       <section className="metric-strip">
         <Metric label="总体状态" value={healthData.summary.status === "ok" ? "正常" : "需复核"} tone={healthData.summary.status === "ok" ? "good" : "warn"} />
@@ -1401,6 +1475,24 @@ function sessionNeedsAttention(session: VaultSession) {
   return session.health.status !== "ok" || !session.notebooklm.artifactCoverage.complete;
 }
 
+function artifactGapCount(session: VaultSession) {
+  const { declaredCount, presentCount } = session.notebooklm.artifactCoverage;
+  return Math.max(0, declaredCount - presentCount);
+}
+
+function coverageLabel(session: VaultSession) {
+  const { declaredCount, presentCount } = session.notebooklm.artifactCoverage;
+  return `${presentCount}/${declaredCount} 份`;
+}
+
+function healthLabel(session: VaultSession) {
+  if (session.health.status === "ok" && session.notebooklm.artifactCoverage.complete) return "健康";
+  if (!session.notebooklm.artifactCoverage.complete) return "素材缺口";
+  if (session.health.status === "warning") return "需复核";
+  if (session.health.status === "error") return "阻断";
+  return "需复核";
+}
+
 function formatMonthDay(date?: string) {
   if (!date) return "暂无";
   return date.length >= 10 ? date.slice(5, 10) : date;
@@ -1649,9 +1741,11 @@ function NotFound({ label, value }: { label: string; value: string }) {
   return (
     <div className="page-stack">
       <header className="page-header">
-        <p className="crumb">Vault Viewer / Missing</p>
-        <h1>未找到 {label}</h1>
-        <p>{value}</p>
+        <div className="overview-copy">
+          <p className="crumb">Vault Viewer / Missing</p>
+          <h1>未找到 {label}</h1>
+          <p className="page-intent">{value}</p>
+        </div>
       </header>
       <a className="text-link" href={href("/")}>回概览</a>
     </div>
@@ -2122,6 +2216,22 @@ function compareSessions(left: VaultSession, right: VaultSession, sort: SessionS
   return latestFirst(left, right);
 }
 
+function groupSessionsByDate(items: VaultSession[]) {
+  const groups: Array<{ date: string; sessions: VaultSession[] }> = [];
+
+  for (const session of items) {
+    const date = session.capturedAt || "暂无日期";
+    const last = groups[groups.length - 1];
+    if (last?.date === date) {
+      last.sessions.push(session);
+    } else {
+      groups.push({ date, sessions: [session] });
+    }
+  }
+
+  return groups;
+}
+
 function latestFirst(left: VaultSession, right: VaultSession) {
   return right.capturedAt.localeCompare(left.capturedAt) || left.title.localeCompare(right.title);
 }
@@ -2135,9 +2245,10 @@ function sourceDomain(url: string) {
 }
 
 function stageLabel(stage: string) {
-  if (stage === "complete") return "已完成";
+  if (stage === "complete" || stage === "completed") return "已完成";
   if (stage === "draft") return "草稿";
   if (stage === "review") return "待复核";
+  if (stage === "synthesized") return "已沉淀";
   return stage || "未标记";
 }
 
