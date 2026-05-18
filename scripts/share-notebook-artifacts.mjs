@@ -42,7 +42,7 @@ function resolveSourcePath(inputPath) {
 
 function mergeArtifactStatus(existing, studioArtifacts, notebookId) {
   const existingById = new Map(
-    Array.isArray(existing?.artifacts) ? existing.artifacts.map((item) => [item.id, item]) : [],
+    existingArtifacts(existing).map((item) => [item.id, item]),
   );
 
   return studioArtifacts.map((artifact) => ({
@@ -52,6 +52,16 @@ function mergeArtifactStatus(existing, studioArtifacts, notebookId) {
     status: artifact.status,
     share_url: artifactShareUrl(notebookId, artifact.id),
   }));
+}
+
+function existingArtifacts(status) {
+  if (Array.isArray(status)) {
+    return status.filter(ensureObject);
+  }
+  if (Array.isArray(status?.artifacts)) {
+    return status.artifacts.filter(ensureObject);
+  }
+  return [];
 }
 
 async function main() {
@@ -69,23 +79,27 @@ async function main() {
     throw new Error(`Missing notebooklm.notebook_id in ${sourcePath}`);
   }
 
-  await runNlm(["share", "public", "--profile", profile, notebookId]);
-
-  const [shareStatus, studioArtifacts] = await Promise.all([
-    runNlmJson(["share", "status", "--profile", profile, notebookId, "--json"]),
-    runNlmJson(["studio", "status", "--profile", profile, notebookId, "--json"]),
-  ]);
-
+  const studioArtifacts = await runNlmJson(["studio", "status", "--profile", profile, notebookId, "--json"]);
   const artifacts = Array.isArray(studioArtifacts) ? studioArtifacts : [];
   const currentAudioId = notebooklm.artifacts?.audio?.id;
   const audioArtifact =
-    artifacts.find((artifact) => artifact.type === "audio" && artifact.id === currentAudioId) ??
-    artifacts.find((artifact) => artifact.type === "audio" && artifact.status === "completed") ??
-    artifacts.find((artifact) => artifact.type === "audio");
+    artifacts.find(
+      (artifact) => artifact.type === "audio" && artifact.id === currentAudioId && artifact.status === "completed",
+    ) ?? artifacts.find((artifact) => artifact.type === "audio" && artifact.status === "completed");
+  const completedAudioArtifacts = artifacts.filter(
+    (artifact) => artifact.type === "audio" && artifact.status === "completed",
+  );
 
   if (!audioArtifact) {
-    throw new Error(`No audio artifact found for notebook ${notebookId}`);
+    const audioStatuses = artifacts
+      .filter((artifact) => artifact.type === "audio")
+      .map((artifact) => `${artifact.id}:${artifact.status}`)
+      .join(", ");
+    throw new Error(`No completed audio artifact found for notebook ${notebookId}. Audio statuses: ${audioStatuses}`);
   }
+
+  await runNlm(["share", "public", "--profile", profile, notebookId]);
+  const shareStatus = await runNlmJson(["share", "status", "--profile", profile, notebookId, "--json"]);
 
   const updatedAt = new Date().toISOString();
 
@@ -105,6 +119,11 @@ async function main() {
     id: audioArtifact.id,
     status: audioArtifact.status === "completed" ? "remote_completed_share_ready" : audioArtifact.status,
     share_url: artifactShareUrl(notebookId, audioArtifact.id),
+    completed_audio_artifacts: completedAudioArtifacts.map((artifact) => ({
+      id: artifact.id,
+      status: artifact.status,
+      share_url: artifactShareUrl(notebookId, artifact.id),
+    })),
     public_access_required: true,
   };
 
@@ -128,10 +147,11 @@ async function main() {
   fs.writeFileSync(sourcePath, dumped, "utf8");
 
   const artifactStatusPath = path.join(sessionDir, "notebooklm/artifacts/artifact-status.json");
-  let artifactStatus = {};
+  let artifactStatusRaw = {};
   if (fs.existsSync(artifactStatusPath)) {
-    artifactStatus = JSON.parse(fs.readFileSync(artifactStatusPath, "utf8"));
+    artifactStatusRaw = JSON.parse(fs.readFileSync(artifactStatusPath, "utf8"));
   }
+  const artifactStatus = Array.isArray(artifactStatusRaw) ? { artifacts: artifactStatusRaw } : ensureObject(artifactStatusRaw);
   artifactStatus.notebook_id = notebookId;
   artifactStatus.checked_at = updatedAt;
   artifactStatus.sharing = {
@@ -142,6 +162,16 @@ async function main() {
   };
   artifactStatus.artifacts = mergeArtifactStatus(artifactStatus, artifacts, notebookId);
   fs.writeFileSync(artifactStatusPath, `${JSON.stringify(artifactStatus, null, 2)}\n`, "utf8");
+
+  const processLogPath = path.join(sessionDir, "notes/process-log.md");
+  const relativeSessionDir = path.relative(process.cwd(), sessionDir);
+  const completedAudioSummary = completedAudioArtifacts.map((artifact) => artifact.id).join(", ");
+  const processLogEntry = `- \`npm run share:artifacts -- ${relativeSessionDir}\`: set notebook sharing to \`${source.notebooklm.sharing.access}\`; audio share URL \`${source.notebooklm.artifacts.audio.share_url}\`; completed audio artifacts: ${completedAudioSummary}.\n`;
+  const existingProcessLog = fs.existsSync(processLogPath) ? fs.readFileSync(processLogPath, "utf8") : "# Process Log\n";
+  if (!existingProcessLog.includes(source.notebooklm.artifacts.audio.share_url)) {
+    const separator = existingProcessLog.endsWith("\n") ? "" : "\n";
+    fs.writeFileSync(processLogPath, `${existingProcessLog}${separator}${processLogEntry}`, "utf8");
+  }
 
   console.log(
     JSON.stringify(
