@@ -18,6 +18,26 @@ export interface ArtifactCoverage {
   statusShape: "array" | "object" | "missing";
 }
 
+export interface ResearchTask {
+  query: string;
+  taskId: string;
+  mode: string;
+  source: string;
+  status: string;
+  importPolicy: string;
+  importedSourceIds: string[];
+  importedIndices: number[];
+  note: string;
+}
+
+export interface ResearchSnapshot {
+  strategy: string;
+  seedQueries: string[];
+  tasks: ResearchTask[];
+  selectedSourceIds: string[];
+  selectionNote: string;
+}
+
 export interface TopicProposal {
   id: string;
   title_zh?: string;
@@ -95,6 +115,7 @@ export interface VaultSession {
     sourceNote: string;
     profile: string;
     conversationId: string;
+    research: ResearchSnapshot;
     artifactCoverage: ArtifactCoverage;
   };
   content: {

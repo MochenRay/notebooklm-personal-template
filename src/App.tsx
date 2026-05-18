@@ -839,6 +839,7 @@ function SessionCard({ session }: { session: VaultSession }) {
 function SessionDetail({ section, session }: { section?: string; session: VaultSession }) {
   const sourceLabel = sourceDomain(session.url) || session.sourceType || "来源";
   const tocGroups = useMemo(() => buildSessionTocGroups(session), [session]);
+  const hasPractice = Boolean(session.practice.flashcards || session.practice.quiz);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
   const toggleCollapsed = (id: string) => {
     setCollapsedIds((current) => {
@@ -949,17 +950,19 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
           </CollapsibleBlock>
         </CollapsibleBlock>
 
-        <CollapsibleBlock
-          collapsed={collapsedIds.has("practice")}
-          className="reader-section"
-          id="practice"
-          level={2}
-          onToggle={toggleCollapsed}
-          subtitle="闪卡 / 测验"
-          title="练习"
-        >
-          <PracticePanel session={session} />
-        </CollapsibleBlock>
+        {hasPractice ? (
+          <CollapsibleBlock
+            collapsed={collapsedIds.has("practice")}
+            className="reader-section"
+            id="practice"
+            level={2}
+            onToggle={toggleCollapsed}
+            subtitle="闪卡 / 测验"
+            title="练习"
+          >
+            <PracticePanel session={session} />
+          </CollapsibleBlock>
+        ) : null}
       </article>
       <aside className="reader-rail" aria-label="页面目录">
         <SessionToc groups={tocGroups} onNavigate={navigateToSection} session={session} />
@@ -1772,20 +1775,22 @@ function buildSessionTocGroups(session: VaultSession): SessionTocGroup[] {
     });
   }
 
-  groups.push(
-    {
-      id: "reading",
-      label: "阅读",
-      icon: BookOpen,
-      items: [
-        ...synthesisItems,
-        {
-          id: "notebooklm",
-          label: "NotebookLM 输出",
-          children: [...reportItems, ...topologyItems],
-        },
-      ],
-    },
+  groups.push({
+    id: "reading",
+    label: "阅读",
+    icon: BookOpen,
+    items: [
+      ...synthesisItems,
+      {
+        id: "notebooklm",
+        label: "NotebookLM 输出",
+        children: [...reportItems, ...topologyItems],
+      },
+    ],
+  });
+
+  if (session.practice.flashcards || session.practice.quiz) {
+    groups.push(
     {
       id: "practice",
       label: "练习",
@@ -1796,6 +1801,7 @@ function buildSessionTocGroups(session: VaultSession): SessionTocGroup[] {
       ],
     },
   );
+  }
 
   return groups;
 }

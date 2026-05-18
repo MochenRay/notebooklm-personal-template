@@ -32,19 +32,9 @@ vault/
           notebooklm/
             report.md
             topology.md
-            study-guide.md
-            quiz.json
-            flashcards.json
             artifacts/
               artifact-status.json
-              report-study-guide.md
-              quiz.json
-              quiz.md
-              quiz.html
-              flashcards.json
-              flashcards.md
-              flashcards.html
-              mindmap.json
+              audio.m4a
           notes/
             process-log.md
             questions.md
@@ -102,31 +92,31 @@ notebooklm:
     auto_deleted_failed_source_ids: []
     unresolved_source_ids: []
     cleanup_note: ""
+  research:
+    strategy: source-grounded-fast-web
+    seed_queries: []
+    tasks:
+      - query: ""
+        task_id: ""
+        source: web
+        mode: fast
+        status: pending
+        import_policy: selective-indices
+        imported_indices: []
+        imported_source_ids: []
+        note: ""
+    selected_source_ids: []
+    selection_note: ""
   created_by: nlm
   profile: learning
   artifacts:
-    report:
+    audio:
       id: ""
       status: pending
-      path: notebooklm/artifacts/report-study-guide.md
-    quiz:
-      id: ""
-      status: pending
-      paths:
-        json: notebooklm/artifacts/quiz.json
-        markdown: notebooklm/artifacts/quiz.md
-        html: notebooklm/artifacts/quiz.html
-    flashcards:
-      id: ""
-      status: pending
-      paths:
-        json: notebooklm/artifacts/flashcards.json
-        markdown: notebooklm/artifacts/flashcards.md
-        html: notebooklm/artifacts/flashcards.html
-    mindmap:
-      id: ""
-      status: pending
-      path: notebooklm/artifacts/mindmap.json
+      format: deep_dive
+      length: default
+      source_ids: []
+      path: notebooklm/artifacts/audio.m4a
 
 topics:
   proposed:
@@ -195,20 +185,8 @@ notebooklm-personal/
 
 - `report.md`
 - `topology.md`
-- `study-guide.md`
-- `quiz.json`
-- `flashcards.json`
-- `mindmap.json`
 - `artifacts/artifact-status.json`
-- `artifacts/report-study-guide.md`
-- `artifacts/quiz.json`
-- `artifacts/quiz.md`
-- `artifacts/quiz.html`
-- `artifacts/flashcards.json`
-- `artifacts/flashcards.md`
-- `artifacts/flashcards.html`
-- `artifacts/mindmap.json`
-- `audio.mp3`
+- `artifacts/audio.m4a`
 - `slides.pdf`
 - `slides.pptx`
 
@@ -249,14 +227,25 @@ based_on:
 
 ### `notebooklm/artifacts/`
 
-`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifacts 的下载结果。默认生成并下载：
+`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifacts 的下载结果。当前默认只生成并下载：
 
-- report：`nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <primary_source_id> --confirm`，下载为 `report-study-guide.md`。
-- quiz：`nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <primary_source_id> --confirm`，下载 `json`、`markdown`、`html` 三种格式。
-- flashcards：`nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <primary_source_id> --confirm`，下载 `json`、`markdown`、`html` 三种格式。
-- mind map：`nlm mindmap create --profile learning <notebook_id> --title "<short title>" --source-ids <primary_source_id> --confirm`，用 `nlm download mind-map` 下载为 `mindmap.json`。
+- audio：`nlm audio create --profile learning <notebook_id> --format deep_dive --length default --source-ids <selected_source_ids> --confirm`，下载为 `audio.m4a`。
 
 `artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、downloaded_paths、generated_at、downloaded_at。若某项失败，保留失败状态与错误摘要。
+
+旧 session 或显式请求仍可保留 report、quiz、flashcards、mind map、slides 等 artifacts；Viewer 和 health check 应兼容这些历史产物，但它们不再属于默认 Pipeline。
+
+### `notebooklm.research`
+
+`notebooklm.research` 记录 Web Fast Research 的过程。默认策略是先基于主 YouTube source 生成 research queries，再选择性导入候选来源，而不是只用 YouTube title 搜索或盲目全量 import。
+
+关键字段：
+
+- `strategy`：默认 `source-grounded-fast-web`。
+- `seed_queries`：由 NotebookLM 基于 `primary_source_id` 生成的 3-5 个英文 query。
+- `tasks`：每次 `nlm research start/status/import` 的记录，含 query、task id、mode、source、status、import policy、imported indices 与 imported source ids。
+- `selected_source_ids`：最终用于综合与 audio 的 source id 清单，通常包含 `primary_source_id` 与筛选后的 research source ids。
+- `selection_note`：为什么选择这些 source，及是否跳过低质/重复候选。
 
 若 source 添加过程中出现失败后远端残留，fallback 成功后应自动删除可明确识别的失败残留 source。`source_ids` 保留清理后的远端实际 source 清单，`primary_source_id` 指向后续 query 与 artifacts 使用的 ready source，`source_note` 说明失败命令、fallback、被自动删除的 failed source id、删除命令与删除后验证结果。结构化字段写入 `cleanup.auto_deleted_failed_source_ids`；无法自动清理时写入 `cleanup.unresolved_source_ids` 与 `cleanup.cleanup_note`，并说明未自动删除原因。只有无法确认身份、不是本轮失败尝试产生、或可能被用户/其它流程使用的 source 才保留为异常。删除其它 source/notebook 仍是不可逆操作，必须等用户明确确认。
 

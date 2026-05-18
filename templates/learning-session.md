@@ -25,25 +25,37 @@
 
 ## Studio Artifacts
 
+默认策略：只生成 Audio Overview；不默认生成 video、report、quiz、flashcards、mind map。
+
+## Research
+
+Query 生成：
+
+- [ ] `nlm notebook query --profile learning <notebook_id> --source-ids <primary_source_id> "<research query prompt>"`
+
+Fast Research：
+
+- [ ] `nlm research start "<query>" --profile learning --notebook-id <notebook_id> --source web --mode fast`
+- [ ] `nlm research status --profile learning <notebook_id> --full`
+- [ ] `nlm research import --profile learning <notebook_id> <task_id> --indices <indices>`
+
+记录：
+
+- Seed queries：
+- Research task IDs：
+- Import policy：
+- Imported source IDs：
+- Selected source IDs for audio：
+
 生成命令：
 
-- [ ] `nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <primary_source_id> --confirm`
-- [ ] `nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <primary_source_id> --confirm`
-- [ ] `nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <primary_source_id> --confirm`
-- [ ] `nlm mindmap create --profile learning <notebook_id> --title "<short title>" --source-ids <primary_source_id> --confirm`
+- [ ] `nlm audio create --profile learning <notebook_id> --format deep_dive --length default --source-ids <selected_source_ids> --confirm`
 
 状态与下载：
 
 - [ ] `nlm studio status <notebook_id> --json`
 - [ ] `notebooklm/artifacts/artifact-status.json`
-- [ ] `notebooklm/artifacts/report-study-guide.md`
-- [ ] `notebooklm/artifacts/quiz.json`
-- [ ] `notebooklm/artifacts/quiz.md`
-- [ ] `notebooklm/artifacts/quiz.html`
-- [ ] `notebooklm/artifacts/flashcards.json`
-- [ ] `notebooklm/artifacts/flashcards.md`
-- [ ] `notebooklm/artifacts/flashcards.html`
-- [ ] `notebooklm/artifacts/mindmap.json`
+- [ ] `notebooklm/artifacts/audio.m4a`
 
 ## Topics
 
@@ -61,9 +73,6 @@
 
 - [ ] `notebooklm/report.md`
 - [ ] `notebooklm/topology.md`
-- [ ] `notebooklm/study-guide.md`
-- [ ] `notebooklm/quiz.json`
-- [ ] `notebooklm/flashcards.json`
 - [ ] 其他：
 
 ## 核心理解

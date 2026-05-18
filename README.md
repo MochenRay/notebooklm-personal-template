@@ -2,9 +2,9 @@
 
 ## 当前定位
 
-此项目保存一条个人学习流水线：看到一个有价值的 YouTube 视频后，用 NotebookLM 消化，用本地 vault 沉淀为可复用知识卡片。文章、论文、技术资料与发布投影先作为后续扩展，不进入第一阶段 MVP。
+此项目保存一条个人学习流水线：看到一个有价值的 YouTube 视频后，用 NotebookLM 消化主视频，再用 Web Fast Research 增补相关信源，最后用本地 vault 沉淀为可复用知识卡片。文章、论文、技术资料与发布投影先作为后续扩展，不进入第一阶段 MVP。
 
-本项目的重点不是“管理 NotebookLM 页面”，而是把 NotebookLM 放进 AI vibecoding 工作流。理想入口是：在 Codex/Gemini/Claude 新对话里给一个 YouTube URL，并说“用 NotebookLM Pipeline 处理”，agent 就能按默认流程创建 NotebookLM notebook、导入 source、生成正式 artifacts、追问、导出、落本地、生成二次综合。
+本项目的重点不是“管理 NotebookLM 页面”，而是把 NotebookLM 放进 AI vibecoding 工作流。理想入口是：在 Codex/Gemini/Claude 新对话里给一个 YouTube URL，并说“用 NotebookLM Pipeline 处理”，agent 就能按默认流程创建 NotebookLM notebook、导入主 source、抽取研究 query、执行 Web Fast Research、只生成 Audio Overview、追问、导出、落本地、生成二次综合。
 
 ## 核心原则
 
@@ -15,8 +15,9 @@
 - `notebooklm-py` 暂作第二阶段候选，用于稳定批量导出、Python pipeline、网站 build 数据生成。
 - 话题/领域会漂移。文件系统不承载领域真相；`sessions/` 按时间固定保存，`topics/` 做可调整索引。
 - topic 由 agent 先建议并默认批准；MVP 每次处理结束必须展示已 approved topics，你若觉得不对再修订。
-- Notebook 粒度：MVP 一条 source 一个 Notebook。跨 source、跨课程、跨主题的聚合先放在本地 `topics/`，后续再做复用 notebook。
-- 添加 source 且 ready 后，默认生成正式 NotebookLM Studio artifacts：Study Guide report、10 题 quiz、hard flashcards、mind map，并下载到本地 vault。
+- Notebook 粒度：MVP 一条主 source 一个 Notebook；Fast Research 增补来源保留在同一个 notebook 内。跨 session、跨课程、跨主题的长期聚合先放在本地 `topics/`，后续再做复用 notebook。
+- 添加主 source 且 ready 后，先基于主 source 提取 3-5 个 research query，再用 `nlm research start --source web --mode fast` 找相关信源；默认由 agent 审候选后 import，必要时才用 `--auto-import`。
+- 默认正式 Studio artifact 只生成 Audio Overview，并下载到本地 vault；不默认生成 video、report、quiz、flashcards、mind map。旧样本的学习 artifacts 继续兼容。
 - 项目本身准备 Git 化与开源；私人 truth vault、raw transcript、媒体 artifact、凭证与本地运行态默认不进 Git。
 - `synthesis.md` 应偏未来复用的知识卡片，不是普通观看笔记。
 - Viewer 面向阅读默认显示中文标题；`source.yaml` 保留原始 `title`，同时写入 `title_zh`，topic 目录 id 保持稳定英文 slug，`index.md` 一级标题写中文。
@@ -128,7 +129,7 @@ personal website / social media
 - 一个新建 NotebookLM notebook。
 - `source.yaml`，含 URL、NotebookLM id、proposed/approved topics。
 - `notebooklm/` 下的结构化输出。
-- `notebooklm/artifacts/` 下的正式 NotebookLM Studio artifacts：report、quiz、flashcards、mind map。
+- `notebooklm/artifacts/` 下的正式 NotebookLM Studio artifact：默认 audio。
 - `notes/` 下的个人追问和理解。
 - 知识卡片式 `synthesis.md`。
 - 结束时展示默认 approved topics；若你有疑问或觉得不对，再修订 topic 归属。

@@ -9,7 +9,9 @@
   -> Agent 用 NotebookLM Pipeline 处理
   -> 通过 nlm CLI 创建 NotebookLM notebook
   -> NotebookLM 消化内容
-  -> 自动生成并下载正式 NotebookLM Studio artifacts
+  -> 基于主 source 生成 Web Fast Research queries
+  -> 选择性导入相关信源
+  -> 自动生成并下载 Audio Overview
   -> 本地 vault 保存过程与结果
   -> Agent 提议 topic 聚合
   -> 默认 approved 并展示给用户
@@ -24,8 +26,9 @@
 - `sessions/` 按时间保存稳定学习事件。
 - `topics/` 是可漂移的聚合层，由 agent 建议、默认批准并展示，用户有异议再修订。
 - 第一阶段采用 `notebooklm-mcp-cli` 的 `nlm` CLI-first，MCP 可选，暂不引入 `notebooklm-py`。
-- MVP 一条 source 一个 Notebook，跨 source 聚合放在本地 `topics/`。
-- 添加 source 且 ready 后，默认自动生成正式 NotebookLM Studio artifacts：Study Guide report、10 题 quiz、hard flashcards、mind map，并下载到 `notebooklm/artifacts/`。
+- MVP 一条主 source 一个 Notebook；同一 notebook 内可由 Web Fast Research 增补相关信源，跨 session 聚合仍放在本地 `topics/`。
+- 添加主 source 且 ready 后，默认先基于主 source 生成 research queries，再用 Web Fast Research 选择性导入相关信源。
+- 默认自动生成正式 NotebookLM Audio Overview，并下载到 `notebooklm/artifacts/audio.m4a`；不默认生成 video、report、quiz、flashcards、mind map。
 - 默认不生成 `publish/website.md`；发布投影需明确指令，后续可另抽发布 skill。
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
 - 项目采用 private living instance + public template。私有仓包含真实 `vault/`；公开模板仓只包含工具、文档、Viewer 与空 `vault/` 壳。
@@ -54,7 +57,7 @@
 | --- | --- | --- |
 | 0. 概念收敛 | 明确 truth layer、CLI-first、topic 漂移层、runbook-first | 已完成 |
 | 1. 工具与仓库接入 | 安装并验证 `notebooklm-mcp-cli`、`nlm`、Git 边界、Codex/Gemini 接入 | 已完成：CLI/Codex/Git 已验证，Gemini 按需 |
-| 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 已完成：实跑 4 个样本 |
+| 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 已完成：实跑 4 个旧 artifact 样本；2026-05-18 起默认流程改为 Fast Research + audio-only |
 | 3. Topic 聚合验证 | 验证 agent topic 建议、默认批准展示、跨月聚合是否可用 | 基础路径已通过；topic 论述合并契约已补强 |
 | 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 已完成：runbook/fallback 已冻结，skill 已安装 |
 | 5. 发布投影 | 在明确发布指令下，验证个人网站知识区与社媒草稿生成 | 未开始 |
@@ -72,7 +75,7 @@
 - 不要求用户一开始定义 topic。
 - topic 由 agent 提议并默认批准；MVP 每次处理结束展示已 approved topics，用户有疑问或觉得不对再修订。
 - `sessions/` 是稳定事实层；`topics/` 是漂移索引层。
-- MVP 一条 source 一个 Notebook。
+- MVP 一条主 source 一个 Notebook；research 增补来源保留在同一个 notebook 内，`primary_source_id` 继续指向原 YouTube。
 - 默认不生成发布草稿，不自动发布。
 - `synthesis.md` 采用知识卡片结构。
 - private living instance 与 public template 分层；以后 merge 默认先进入私有仓，再筛选 public-safe 内容同步公开仓。
@@ -139,7 +142,7 @@
 - `vault/sessions/YYYY/MM/<slug>/source.yaml`
 - `notes/process-log.md`
 - `notebooklm/report.md` 或 `notebooklm/topology.md`
-- `notebooklm/artifacts/` 下的正式 artifacts：report、quiz、flashcards、mind map
+- `notebooklm/artifacts/` 下的正式 artifact：默认 audio；早期样本保留 report、quiz、flashcards、mind map
 - `notes/questions.md`
 - 知识卡片式 `synthesis.md`
 
@@ -184,6 +187,13 @@
 - 2026-05-14 复盘后修订 runbook：以后同一次运行中若第一次 add-source 失败、fallback 成功，且能明确识别失败尝试留下的非 primary source，agent 应自动删除该残留，不再要求用户确认，也不在最终回复中暴露为待处理事项；其它 source/notebook 删除仍需明确确认。样本 4 的既有历史残留不被本次文档修订自动删除。
 
 状态：已完成。三样本目标已满足，且实跑第 4 个样本暴露并验证了 source add 失败后的 fallback 与记录机制。
+
+2026-05-18 流程改造：
+
+- 默认不再把 report、quiz、flashcards、mind map 作为新 session 的 Studio artifacts。
+- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Audio Overview -> 本地 vault 沉淀。
+- `source.yaml` 新增 `notebooklm.research`，用于记录 seed queries、research tasks、import policy、imported sources 和最终用于 audio 的 selected source ids。
+- 旧样本产物继续兼容，Viewer 对 quiz/flashcards/mind map 的读取保留；audio-only 新 session 不应出现空的练习面板。
 
 ## 阶段 3：Topic 聚合验证
 

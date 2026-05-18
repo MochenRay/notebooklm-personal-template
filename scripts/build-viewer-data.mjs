@@ -233,6 +233,47 @@ function declaredArtifactPaths(source) {
   return paths;
 }
 
+function stringArray(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+
+function notebooklmResearchSnapshot(source) {
+  const research = source?.notebooklm?.research;
+  if (!isPlainObject(research)) {
+    return {
+      strategy: "",
+      seedQueries: [],
+      tasks: [],
+      selectedSourceIds: [],
+      selectionNote: "",
+    };
+  }
+
+  return {
+    strategy: typeof research.strategy === "string" ? research.strategy : "",
+    seedQueries: stringArray(research.seed_queries),
+    tasks: Array.isArray(research.tasks)
+      ? research.tasks
+          .filter(isPlainObject)
+          .map((task) => ({
+            query: typeof task.query === "string" ? task.query : "",
+            taskId: typeof task.task_id === "string" ? task.task_id : "",
+            mode: typeof task.mode === "string" ? task.mode : "",
+            source: typeof task.source === "string" ? task.source : "",
+            status: typeof task.status === "string" ? task.status : "",
+            importPolicy: typeof task.import_policy === "string" ? task.import_policy : "",
+            importedSourceIds: stringArray(task.imported_source_ids),
+            importedIndices: Array.isArray(task.imported_indices)
+              ? task.imported_indices.filter((item) => Number.isInteger(item))
+              : [],
+            note: typeof task.note === "string" ? task.note : "",
+          }))
+      : [],
+    selectedSourceIds: stringArray(research.selected_source_ids),
+    selectionNote: typeof research.selection_note === "string" ? research.selection_note : "",
+  };
+}
+
 function artifactCoverage(sessionDir, source, findings, sessionId) {
   const declared = declaredArtifactPaths(source);
   const coverage = declared.map((item) => {
@@ -381,7 +422,17 @@ function buildSessions(findings) {
       });
     }
 
-    if (sourceIds.length > 1) {
+    const research = notebooklmResearchSnapshot(source);
+    const cleanup = source?.notebooklm?.cleanup;
+    const hasResearchSources = research.tasks.length > 0 || research.selectedSourceIds.length > 0;
+    const hasCleanupExplanation =
+      isPlainObject(cleanup) &&
+      (stringArray(cleanup.unresolved_source_ids).length > 0 ||
+        stringArray(cleanup.auto_deleted_failed_source_ids).length > 0 ||
+        (typeof cleanup.cleanup_note === "string" && cleanup.cleanup_note.trim()));
+    const hasSourceExplanation = typeof source?.notebooklm?.source_note === "string" && source.notebooklm.source_note.trim();
+
+    if (sourceIds.length > 1 && !hasResearchSources && !hasCleanupExplanation && !hasSourceExplanation) {
       findings.push({
         severity: "warning",
         type: "multiple_source_ids",
@@ -443,6 +494,7 @@ function buildSessions(findings) {
         sourceNote: source?.notebooklm?.source_note || "",
         profile: source?.notebooklm?.profile || "",
         conversationId: source?.notebooklm?.conversation_id || "",
+        research,
         artifactCoverage: coverage,
       },
       content: {

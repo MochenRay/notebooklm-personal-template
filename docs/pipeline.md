@@ -9,8 +9,10 @@ YouTube URL
   -> agent 创建本地 session
   -> agent 通过 nlm CLI 创建 NotebookLM notebook
   -> NotebookLM 消化 source
-  -> agent 生成并下载正式 NotebookLM Studio artifacts
-  -> agent 拉回结构化输出
+  -> agent 基于主 source 抽取 research queries
+  -> NotebookLM Web Fast Research 发现并导入相关信源
+  -> agent 基于全部 sources 拉回结构化输出
+  -> agent 生成并下载 Audio Overview
   -> 本地 notes + synthesis
   -> topic 建议与索引
   -> 默认 approved topics 并展示给用户
@@ -28,7 +30,9 @@ YouTube URL
 agent 不应强制用户先给完整 topic、目标、输出格式。MVP 阶段只支持 YouTube URL。默认目标是：
 
 - 消化内容。
-- 生成正式 NotebookLM Studio artifacts。
+- 基于主视频抽取 search query，而不是只用 YouTube title。
+- 用 Web Fast Research 补充相关信源。
+- 生成正式 NotebookLM Audio Overview；不默认生成 video。
 - 提取核心结构。
 - 形成小型知识拓扑。
 - 生成个人追问。
@@ -79,7 +83,7 @@ vault/sessions/YYYY/MM/<slug>/
 
 ## 阶段 2：创建 NotebookLM notebook
 
-MVP 阶段一条 source 一个 Notebook，默认新建 notebook。
+MVP 阶段一条主 source 一个 Notebook，默认新建 notebook。Fast Research 增补来源保留在同一个 notebook 内，`primary_source_id` 继续指向原 YouTube source。
 
 后续可扩展为：
 
@@ -116,62 +120,69 @@ nlm source add --profile learning <notebook_id> --url "<URL>" --wait --wait-time
 - 可建议使用 transcript MCP 或手动导出 transcript。
 - 不要把失败误写成已完成。
 
-## 阶段 4：正式 artifacts 生成与下载
+## 阶段 4：抽取 research queries 并导入新来源
 
-添加 source 且等待 ready 后，agent 默认立刻生成正式 NotebookLM Studio artifacts，不需要用户主动唤起。
+添加主 source 且等待 ready 后，agent 先只基于 `primary_source_id` 追问 NotebookLM，生成 3-5 个适合 Web Fast Research 的英文 query。不要只把 YouTube title 当作唯一搜索词。
 
-默认生成：
-
-```bash
-nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <primary_source_id> --confirm
-nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <primary_source_id> --confirm
-nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <primary_source_id> --confirm
-nlm mindmap create --profile learning <notebook_id> --title "<short title>" --source-ids <primary_source_id> --confirm
-```
-
-随后查询状态：
+默认 query 模板：
 
 ```bash
-nlm studio status --profile learning <notebook_id> --json
+nlm notebook query --profile learning <notebook_id> \
+  --source-ids <primary_source_id> \
+  "请基于这个视频提取 3-5 个适合 Web Fast Research 的英文搜索 query。每个 query 应包含核心命题、关键人物/公司/论文/产品、可验证事实或反方边界，避免只重复视频标题。"
 ```
 
-下载到本地 vault：
+随后对 2-3 个高质量 query 执行 Fast Research：
 
 ```bash
-nlm download report <notebook_id> --id <artifact_id> --output "notebooklm/artifacts/report-study-guide.md"
-nlm download quiz <notebook_id> --id <artifact_id> --format json --output "notebooklm/artifacts/quiz.json"
-nlm download quiz <notebook_id> --id <artifact_id> --format markdown --output "notebooklm/artifacts/quiz.md"
-nlm download quiz <notebook_id> --id <artifact_id> --format html --output "notebooklm/artifacts/quiz.html"
-nlm download flashcards <notebook_id> --id <artifact_id> --format json --output "notebooklm/artifacts/flashcards.json"
-nlm download flashcards <notebook_id> --id <artifact_id> --format markdown --output "notebooklm/artifacts/flashcards.md"
-nlm download flashcards <notebook_id> --id <artifact_id> --format html --output "notebooklm/artifacts/flashcards.html"
-nlm download mind-map <notebook_id> --id <artifact_id> --output "notebooklm/artifacts/mindmap.json"
+nlm research start "<query>" --profile learning --notebook-id <notebook_id> --source web --mode fast
+nlm research status --profile learning <notebook_id> --full
 ```
 
-`nlm download mind-map` 使用 hyphen；不要写成 `mindmap`。下载失败时记录到 `notes/process-log.md`，不要把失败误写成已完成。若个别 artifact 超时或失败，先保存已完成 artifacts，继续后续消化，并在 `source.yaml` 标注失败项。
+默认不要直接全量导入。先查看候选来源，优先导入官方文档、原始论文、作者原文、产品/公司页面、可信媒体或能直接校验视频核心主张的来源：
+
+```bash
+nlm research import --profile learning <notebook_id> <task_id> --indices 0,2,5
+```
+
+只有在用户明确要省心批处理、或候选来源无需人工/agent 筛选时，才用自动导入：
+
+```bash
+nlm research start "<query>" --profile learning --notebook-id <notebook_id> --source web --mode fast --auto-import
+```
+
+记录到 `source.yaml`：
+
+- `notebooklm.research.strategy`
+- `notebooklm.research.seed_queries`
+- `notebooklm.research.tasks[].query`
+- `notebooklm.research.tasks[].task_id`
+- `notebooklm.research.tasks[].import_policy`
+- `notebooklm.research.tasks[].imported_source_ids`
+- `notebooklm.research.selected_source_ids`
+- `notebooklm.source_ids` 更新为当前远端实际 sources，`primary_source_id` 仍指向原 YouTube source。
+
+若 research 失败，不阻断主视频消化；记录失败并继续用 primary source 完成本地沉淀与 audio。
 
 ## 阶段 5：NotebookLM 追问与消化
 
 默认追问模板：
 
-1. 这份材料的核心问题、结论和论证结构是什么？
-2. 关键概念之间的关系如何？请给出知识拓扑。
-3. 哪些观点可迁移到我的个人知识系统、AI vibecoding 或当前项目？
-4. 有哪些反例、争议、薄弱假设？
-5. 请给出适合后续复习的 quiz、flashcards 或 study guide。
+1. 只基于主 YouTube source：原视频的核心问题、结论和论证结构是什么？
+2. 只基于新增 research sources：哪些外部证据支持、修正或反驳原视频？
+3. 基于全部 sources：关键概念之间的关系如何？请给出知识拓扑。
+4. 基于全部 sources：哪些观点可迁移到我的个人知识系统、AI vibecoding 或当前项目？
+5. 基于全部 sources：有哪些反例、争议、薄弱假设和后续追问？
 
 输出优先保存到：
 
 ```text
 notebooklm/report.md
 notebooklm/topology.md
-notebooklm/study-guide.md
-notebooklm/quiz.json
-notebooklm/flashcards.json
 notebooklm/artifacts/
 ```
 
-`notebooklm/report.md`、`topology.md`、`study-guide.md` 可以来自 NotebookLM query 后的结构化整理；`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifact 下载结果。
+`notebooklm/report.md`、`topology.md` 可以来自 NotebookLM query 后的结构化整理；`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifact 下载结果。
 
 若这些文件包含 agent 改写、结构化整理或推断，frontmatter 使用 `origin: notebooklm-with-agent-edit`；只有未改写的 NotebookLM 原始导出才使用 `origin: notebooklm`。
 
@@ -181,7 +192,26 @@ notebooklm/artifacts/
 - 区分证据来源时使用 `来源事实`、`NotebookLM 归纳`、`Agent 推断`、`用户原话`。
 - 不要在最终 Markdown 标题里留下 `Source facts`、`NotebookLM synthesis`、`Agent inference`、`Core Report`、`Knowledge Topology` 这类英文结构标签；英文原文术语和专有名词可留在正文或 code span。
 
-## 阶段 6：本地二次消化
+## 阶段 6：生成并下载 Audio Overview
+
+默认只生成 Audio Overview，不生成 video。Audio 可基于全部 sources，也可由 agent 根据 source 质量筛选 `research.selected_source_ids` 加上 `primary_source_id` 后生成。
+
+```bash
+nlm audio create --profile learning <notebook_id> \
+  --format deep_dive \
+  --length default \
+  --source-ids <selected_source_ids> \
+  --confirm
+nlm studio status --profile learning <notebook_id> --json
+nlm download audio <notebook_id> --id <audio_artifact_id> \
+  --output "notebooklm/artifacts/audio.m4a"
+```
+
+若要基于全部来源，可不传 `--source-ids`，但默认优先显式传入筛选后的 source ids。`notes/process-log.md` 必须记录 create/status/download 命令、audio artifact id、ready/failed 状态和下载路径。下载失败时记录到 `source.yaml` 与 `process-log.md`，不要把失败误写成已完成。
+
+旧流程的 report、quiz、flashcards、mind map 仍可按需生成，但不再属于默认 Pipeline。
+
+## 阶段 7：本地二次消化
 
 agent 基于本地文件写：
 
@@ -191,7 +221,7 @@ agent 基于本地文件写：
 
 `synthesis.md` 是本地沉淀的核心，不是 NotebookLM 单次回答的复制，也不是普通观看笔记。它应能被未来 Codex/Gemini 直接复用。
 
-## 阶段 7：topic 建议
+## 阶段 8：topic 建议
 
 agent 自动生成 topic 建议，不要求用户一开始分类。建议生成后默认视为 approved，并在最终回复展示给用户；若用户有疑问或觉得不对，再修订 `approved` 与 topic 索引。
 
@@ -229,7 +259,7 @@ topic index 更新采用 semantic merge，而不是 append-only session log：
 - 不要让每个 session 对应一个正文段落，也不要用“新 session 补充了另一条判断”这类表述组织正文。
 - 暂时无法整合的材料进入 `## 待合并 / 待拆分`，等待后续专门整理。
 
-## 阶段 8：发布边界
+## 阶段 9：发布边界
 
 默认不生成：
 
@@ -248,14 +278,14 @@ status:
 
 只有用户明确要求发布，或后续调用发布 skill，才生成 `publish/website.md`。发布稿应遵守 `docs/publishing-policy.md`。
 
-## 阶段 9：收尾记录
+## 阶段 10：收尾记录
 
 每次处理结束，更新：
 
 - `source.yaml` 的状态。
 - `source_ids`、`primary_source_id`、失败 add-source 残留的自动清理记录，或无法自动清理的异常原因。
 - `notes/process-log.md`。
-- `notebooklm/artifacts/` 的下载清单。
+- `notebooklm/artifacts/` 的 audio 下载清单。
 - `vault/notebooklm/notebooks.yaml`。
 - topic proposed/approved 状态。
 - 已展示给用户的 approved topics 与后续修订入口。
