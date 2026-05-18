@@ -63,9 +63,9 @@
 - 默认通过 `nlm` CLI 创建 NotebookLM notebook。
 - 默认将 URL 添加为 source。
 - 默认在主 source ready 后先抽取 Web Fast Research queries，再导入筛选后的相关信源。
-- 默认只生成 NotebookLM Audio Overview，并下载到本地 `notebooklm/artifacts/audio.m4a`；不默认生成 video、report、quiz、flashcards、mind map。
+- 默认只生成 NotebookLM Audio Overview，并把 NotebookLM notebook 设为“知道链接的任何人可访问”以保存可播放 artifact 链接；本地 `audio.m4a` 只作为按需缓存，不阻断收尾。不默认生成 video、report、quiz、flashcards、mind map。
 - 默认只生成本地沉淀，不生成发布草稿。
-- 默认不删除、不公开分享、不邀请协作者、不发布社媒；唯一例外是同一次运行中由失败 add-source 尝试留下、且 fallback 成功后可明确识别为非 primary 的 source 残留，此类残留视为已预授权自动清理。
+- 默认不删除 notebook/source/artifact、不邀请协作者、不发布社媒；唯一例外是同一次运行中由失败 add-source 尝试留下、且 fallback 成功后可明确识别为非 primary 的 source 残留，此类残留视为已预授权自动清理。NotebookLM notebook link access 默认公开，用于让 artifact 播放链接可访问。
 - 默认一条主 source 一个 Notebook；Fast Research 增补来源保留在同一个 notebook 内。
 - 默认 topic 由 agent 提议并直接写入 approved，处理结束时展示给用户；用户有疑问或觉得不对再修订。
 - 默认 `synthesis.md` 写成知识卡片，不写成普通观看笔记。
@@ -185,7 +185,7 @@ notes/questions.md
 若 `notebooklm/report.md` 或 `notebooklm/topology.md` 已由 agent 改写、结构化整理或补充推断，frontmatter 使用 `origin: notebooklm-with-agent-edit`；只有未改写原始导出才使用 `origin: notebooklm`。
 写入前检查一次 Markdown 标题：阅读型结构标题必须中文化，尤其是 `Source facts`、`NotebookLM synthesis`、`Agent inference`、`Core Report`、`Knowledge Topology`。
 
-### 6. 生成并下载 Audio Overview
+### 6. 生成 Audio Overview 并保存可播放链接
 
 默认只生成 Audio Overview，不生成 video。Audio 可基于全部 sources，也可由 agent 根据 source 质量筛选 `primary_source_id + research.selected_source_ids` 后生成。
 
@@ -196,11 +196,10 @@ nlm audio create --profile learning <notebook_id> \
   --source-ids <selected_source_ids> \
   --confirm
 nlm studio status --profile learning <notebook_id> --json
-nlm download audio <notebook_id> --id <audio_artifact_id> \
-  --output "notebooklm/artifacts/audio.m4a"
+npm run share:artifacts -- "vault/sessions/YYYY/MM/<slug>"
 ```
 
-`notes/process-log.md` 必须记录 create/status/download 命令、audio artifact ID、ready/failed 状态和下载路径。旧流程的 report、quiz、flashcards、mind map 可按需生成，但不属于默认 Pipeline。
+`share:artifacts` 会执行 `nlm share public`，读取 sharing/studio 状态，并把 `notebooklm.sharing.public_link` 与 `notebooklm.artifacts.audio.share_url` 写回 `source.yaml`。`notes/process-log.md` 必须记录 create/status/share 命令、audio artifact ID、ready/failed 状态和 share URL。本地 `audio.m4a` 下载只作为 backlog/backfill 或用户明确要求，不阻断当前 session。旧流程的 report、quiz、flashcards、mind map 可按需生成，但不属于默认 Pipeline。
 
 ### 7. 写 synthesis
 
@@ -255,7 +254,7 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 
 - `source.yaml`
 - `notes/process-log.md`
-- `notebooklm/artifacts/audio.m4a`
+- `notebooklm.artifacts.audio.share_url`，以及可选的 `notebooklm/artifacts/audio.m4a` 本地缓存
 - `vault/notebooklm/notebooks.yaml`
 - `topics.proposed`、`topics.approved` 与最终回复中的 topic 展示
 
@@ -274,7 +273,7 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 ## 禁止事项
 
 - 不自动发布。
-- 不自动公开分享 NotebookLM notebook。
+- NotebookLM notebook link access 默认公开，用于让 artifact share URL 可播放；这不等同于生成公开草稿、同步公开模板仓或发布社媒。
 - 不删除 notebook/source/artifact；同一次运行中失败 add-source 尝试留下的非 primary source 残留除外，按异常处理规则自动清理。
 - 不把完整 transcript 放进 publish。
 - 不把 agent 推断写成用户观点。

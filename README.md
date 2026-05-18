@@ -17,8 +17,8 @@
 - topic 由 agent 先建议并默认批准；MVP 每次处理结束必须展示已 approved topics，你若觉得不对再修订。
 - Notebook 粒度：MVP 一条主 source 一个 Notebook；Fast Research 增补来源保留在同一个 notebook 内。跨 session、跨课程、跨主题的长期聚合先放在本地 `topics/`，后续再做复用 notebook。
 - 添加主 source 且 ready 后，先基于主 source 提取 3-5 个 research query，再用 `nlm research start --source web --mode fast` 找相关信源；默认由 agent 审候选后 import，必要时才用 `--auto-import`。
-- 默认正式 Studio artifact 只生成 Audio Overview，并下载到本地 vault；不默认生成 video、report、quiz、flashcards、mind map。旧样本的学习 artifacts 继续兼容。
-- 项目本身准备 Git 化与开源；私人 truth vault、raw transcript、媒体 artifact、凭证与本地运行态默认不进 Git。
+- 默认正式 Studio artifact 只生成 Audio Overview，并把 NotebookLM notebook 设为“知道链接的任何人可访问”以保存可播放 artifact 链接；本地 `audio.m4a` 只作为按需缓存，不再是默认闭环要求。旧样本的学习 artifacts 继续兼容。
+- 项目本身准备 Git 化与开源；私人 truth vault、raw transcript、媒体二进制、凭证与本地运行态默认不进 Git。NotebookLM artifact share URL 可进私有 vault metadata，但不进入公开模板投影。
 - `synthesis.md` 应偏未来复用的知识卡片，不是普通观看笔记。
 - Viewer 面向阅读默认显示中文标题；`source.yaml` 保留原始 `title`，同时写入 `title_zh`，topic 目录 id 保持稳定英文 slug，`index.md` 一级标题写中文。
 

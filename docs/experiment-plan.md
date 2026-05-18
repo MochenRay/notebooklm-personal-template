@@ -11,7 +11,7 @@
   -> NotebookLM 消化内容
   -> 基于主 source 生成 Web Fast Research queries
   -> 选择性导入相关信源
-  -> 自动生成并下载 Audio Overview
+  -> 自动生成 Audio Overview 并保存可播放分享链接
   -> 本地 vault 保存过程与结果
   -> Agent 提议 topic 聚合
   -> 默认 approved 并展示给用户
@@ -28,7 +28,7 @@
 - 第一阶段采用 `notebooklm-mcp-cli` 的 `nlm` CLI-first，MCP 可选，暂不引入 `notebooklm-py`。
 - MVP 一条主 source 一个 Notebook；同一 notebook 内可由 Web Fast Research 增补相关信源，跨 session 聚合仍放在本地 `topics/`。
 - 添加主 source 且 ready 后，默认先基于主 source 生成 research queries，再用 Web Fast Research 选择性导入相关信源。
-- 默认自动生成正式 NotebookLM Audio Overview，并下载到 `notebooklm/artifacts/audio.m4a`；不默认生成 video、report、quiz、flashcards、mind map。
+- 默认自动生成正式 NotebookLM Audio Overview，公开 notebook link access 并保存可播放 artifact share URL；`notebooklm/artifacts/audio.m4a` 只是可选本地缓存。不默认生成 video、report、quiz、flashcards、mind map。
 - 默认不生成 `publish/website.md`；发布投影需明确指令，后续可另抽发布 skill。
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
 - 项目采用 private living instance + public template。私有仓包含真实 `vault/`；公开模板仓只包含工具、文档、Viewer 与空 `vault/` 壳。
@@ -191,7 +191,7 @@
 2026-05-18 流程改造：
 
 - 默认不再把 report、quiz、flashcards、mind map 作为新 session 的 Studio artifacts。
-- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Audio Overview -> 本地 vault 沉淀。
+- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Audio Overview -> notebook link access 默认公开 -> artifact share URL -> 本地 vault 沉淀。
 - `source.yaml` 新增 `notebooklm.research`，用于记录 seed queries、research tasks、import policy、imported sources 和最终用于 audio 的 selected source ids。
 - 旧样本产物继续兼容，Viewer 对 quiz/flashcards/mind map 的读取保留；audio-only 新 session 不应出现空的练习面板。
 
@@ -329,7 +329,7 @@ Telegram message with YouTube URL
 
 - 不进入第一阶段 MVP。
 - 不阻塞三样本验证、topic 聚合与 skill 化决策。
-- 不自动发布、不自动公开分享 NotebookLM notebook、不删除远端或本地内容；同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别的非 primary source 残留，仍按 pipeline 规则自动清理。
+- 不自动发布网站/社媒、不删除远端或本地内容；NotebookLM notebook link access 默认公开，用于让 artifact share URL 可播放。同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别的非 primary source 残留，仍按 pipeline 规则自动清理。
 
 状态：未来候选。
 

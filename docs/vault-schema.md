@@ -34,7 +34,7 @@ vault/
             topology.md
             artifacts/
               artifact-status.json
-              audio.m4a
+              audio.m4a   # optional local cache
           notes/
             process-log.md
             questions.md
@@ -116,7 +116,10 @@ notebooklm:
       format: deep_dive
       length: default
       source_ids: []
-      path: notebooklm/artifacts/audio.m4a
+      share_url: ""
+      public_access_required: true
+      downloaded: false
+      target_path: notebooklm/artifacts/audio.m4a
 
 topics:
   proposed:
@@ -186,7 +189,7 @@ notebooklm-personal/
 - `report.md`
 - `topology.md`
 - `artifacts/artifact-status.json`
-- `artifacts/audio.m4a`
+- `artifacts/audio.m4a`（可选本地缓存）
 - `slides.pdf`
 - `slides.pptx`
 
@@ -227,11 +230,11 @@ based_on:
 
 ### `notebooklm/artifacts/`
 
-`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifacts 的下载结果。当前默认只生成并下载：
+`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifacts 的状态快照；媒体二进制只作为按需缓存。当前默认只生成：
 
-- audio：`nlm audio create --profile learning <notebook_id> --format deep_dive --length default --source-ids <selected_source_ids> --confirm`，下载为 `audio.m4a`。
+- audio：`nlm audio create --profile learning <notebook_id> --format deep_dive --length default --source-ids <selected_source_ids> --confirm`，随后通过 `npm run share:artifacts -- <session-dir>` 公开 notebook link access 并写入 `notebooklm.artifacts.audio.share_url`。`audio.m4a` 是可选本地缓存，不是默认闭环要求。
 
-`artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、downloaded_paths、generated_at、downloaded_at。若某项失败，保留失败状态与错误摘要。
+`artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、share_url、generated_at、checked_at、downloaded_at。若某项失败，保留失败状态与错误摘要。
 
 旧 session 或显式请求仍可保留 report、quiz、flashcards、mind map、slides 等 artifacts；Viewer 和 health check 应兼容这些历史产物，但它们不再属于默认 Pipeline。
 

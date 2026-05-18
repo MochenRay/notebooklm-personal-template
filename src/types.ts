@@ -4,10 +4,14 @@ export type HealthStatus = "error" | "warning" | "ok";
 export interface ArtifactPath {
   artifactType: string;
   format?: string;
+  id?: string;
   path: string;
   status: string;
   exists: boolean;
   localPath: string;
+  shareUrl?: string;
+  downloaded?: boolean | null;
+  remoteOnly?: boolean;
 }
 
 export interface ArtifactCoverage {

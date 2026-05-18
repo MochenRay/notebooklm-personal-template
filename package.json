@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build:data": "node scripts/build-viewer-data.mjs",
+    "share:artifacts": "node scripts/share-notebook-artifacts.mjs",
     "predev": "npm run build:data",
     "dev": "vite",
     "build": "npm run build:data && tsc -b && vite build",

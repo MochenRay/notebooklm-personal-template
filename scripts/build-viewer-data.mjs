@@ -219,15 +219,28 @@ function declaredArtifactPaths(source) {
 
   for (const [artifactType, artifact] of Object.entries(artifacts)) {
     if (!isPlainObject(artifact)) continue;
+    const common = {
+      artifactType,
+      id: typeof artifact.id === "string" ? artifact.id : "",
+      status: artifact.status ?? "",
+      shareUrl: typeof artifact.share_url === "string" ? artifact.share_url : "",
+      downloaded: typeof artifact.downloaded === "boolean" ? artifact.downloaded : null,
+    };
+    let hasLocalPath = false;
     if (typeof artifact.path === "string") {
-      paths.push({ artifactType, path: artifact.path, status: artifact.status ?? "" });
+      hasLocalPath = true;
+      paths.push({ ...common, path: artifact.path });
     }
     if (isPlainObject(artifact.paths)) {
       for (const [format, artifactPath] of Object.entries(artifact.paths)) {
         if (typeof artifactPath === "string") {
-          paths.push({ artifactType, format, path: artifactPath, status: artifact.status ?? "" });
+          hasLocalPath = true;
+          paths.push({ ...common, format, path: artifactPath });
         }
       }
+    }
+    if (!hasLocalPath && common.shareUrl) {
+      paths.push({ ...common, path: "", remoteOnly: true });
     }
   }
   return paths;
@@ -276,7 +289,25 @@ function notebooklmResearchSnapshot(source) {
 
 function artifactCoverage(sessionDir, source, findings, sessionId) {
   const declared = declaredArtifactPaths(source);
+  const completeStatuses = new Set(["completed", "remote_completed", "remote_completed_share_ready", "share_ready"]);
   const coverage = declared.map((item) => {
+    if (item.status && !completeStatuses.has(item.status)) {
+      findings.push({
+        severity: "warning",
+        type: "artifact_status_warning",
+        sessionId,
+        artifactType: item.artifactType,
+        path: relativeToRoot(path.join(sessionDir, "source.yaml")),
+        message: `Artifact status is ${item.status}.`,
+      });
+    }
+    if (item.remoteOnly) {
+      return {
+        ...item,
+        exists: false,
+        localPath: "",
+      };
+    }
     const fullPath = path.join(sessionDir, item.path);
     const exists = fs.existsSync(fullPath);
     if (!exists) {
@@ -287,16 +318,6 @@ function artifactCoverage(sessionDir, source, findings, sessionId) {
         artifactType: item.artifactType,
         path: relativeToRoot(fullPath),
         message: `Declared artifact path is missing: ${item.path}`,
-      });
-    }
-    if (item.status && item.status !== "completed") {
-      findings.push({
-        severity: "warning",
-        type: "artifact_status_warning",
-        sessionId,
-        artifactType: item.artifactType,
-        path: relativeToRoot(path.join(sessionDir, "source.yaml")),
-        message: `Artifact status is ${item.status}.`,
       });
     }
     return {
@@ -320,8 +341,8 @@ function artifactCoverage(sessionDir, source, findings, sessionId) {
 
   return {
     declaredCount: declared.length,
-    presentCount: coverage.filter((item) => item.exists).length,
-    complete: coverage.length > 0 && coverage.every((item) => item.exists),
+    presentCount: coverage.filter((item) => item.exists || item.shareUrl).length,
+    complete: coverage.length > 0 && coverage.every((item) => item.exists || item.shareUrl),
     items: coverage,
     statusShape: Array.isArray(statusData) ? "array" : isPlainObject(statusData) ? "object" : "missing",
   };
