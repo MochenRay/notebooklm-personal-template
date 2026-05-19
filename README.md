@@ -10,10 +10,10 @@
 
 - YouTube URL 直达本地学习单元：agent 新建 session、创建 NotebookLM notebook、导入主视频 source，并把 notebook/source/topic 映射写入本地 vault。
 - Source-grounded Web Fast Research：主 source ready 后，先让 NotebookLM 基于 `primary_source_id` 生成 3-5 个英文 research query，再用 `nlm research start --source web --mode fast` 发现候选信源，由 agent 选择性 import 高质量来源，最后基于主视频 + 增补信源一起消化。
-- 全量 Studio artifact 默认链路：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview 都是默认要求。前四类 artifact 应在本轮 session 内生成、下载并落到 `notebooklm/artifacts/`；Audio Overview 可以异步完成。
-- 可播放音频补档：`npm run share:artifacts -- <session-dir>` 会先确认远端是否存在 `completed` audio。若已完成，脚本把 notebook 设为“知道链接的任何人可访问”，写回 `notebooklm.artifacts.audio.share_url`、`completed_audio_artifacts`、`notebooklm.sharing`，并下载 `notebooklm/artifacts/audio.m4a`；若仍在生成或不存在，只写入“生成中/未完成”状态，不伪造链接。
-- 批量音频回填：既有 session 可被批量检查；已完成音频的 session 会写回播放链接并下载音频，未完成或没有 completed audio 的 session 不会被公开。2026-05-19 本地可验证状态为 10 个 session 中 9 个已有 audio share URL，1 个早期样本仅保留旧 artifact 状态快照。
-- 媒体二进制不入库：`audio.m4a` 完成后需要落到本地 vault，但 `.m4a` 等媒体文件不进 Git；Git 只保存 metadata、状态和非媒体学习 artifacts。
+- 全量 Studio artifact 默认链路：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview 都是默认要求。前四类 artifact 应在本轮 session 内生成、下载并落到 `notebooklm/artifacts/`；Audio Overview 只在远端发起生成。
+- 可播放音频补档：当前新 session 永远不等待、不轮询、不分享音频。只在下一次处理新 session 的开头运行 `npm run audio:backfill`，按 `vault/notebooklm/audio-index.yaml` 批量检查旧 pending audio；若远端已有 completed audio，脚本才把 notebook 设为“知道链接的任何人可访问”，写回 `notebooklm.artifacts.audio.share_url`、`completed_audio_artifacts` 与 `notebooklm.sharing`。
+- 批量音频回填：`npm run audio:backfill -- --exclude <current-session-dir>` 可显式排除当前 session。底层单条回填仍由 `npm run share:artifacts -- <session-dir>` 执行；未完成或没有 completed audio 的 session 不会被公开。
+- 媒体二进制不入库：本系统不下载或保存本地音频文件；Git 只保存 metadata、状态、可播放 artifact share URL 和非媒体学习 artifacts。
 - 本地 Vault Viewer：`npm run build:data` 从私有 `vault/` 生成 `.viewer-data/` 投影，Vite/React Viewer 提供 overview、sessions、topics、topic detail、session detail、health 与知识图谱阅读面。
 - 健康检查与浏览器 smoke：`npm run build:data` 当前写出 10 sessions、23 topics、0 health findings；`npm run smoke` 用 Playwright 验证关键路由、移动端溢出与截图。
 
@@ -28,7 +28,7 @@
 - topic 由 agent 先建议并默认批准；MVP 每次处理结束必须展示已 approved topics，你若觉得不对再修订。
 - Notebook 粒度：MVP 一条主 source 一个 Notebook；Fast Research 增补来源保留在同一个 notebook 内。跨 session、跨课程、跨主题的长期聚合先放在本地 `topics/`，后续再做复用 notebook。
 - 添加主 source 且 ready 后，先基于主 source 提取 3-5 个 research query，再用 `nlm research start --source web --mode fast` 找相关信源；默认由 agent 审候选后 import，必要时才用 `--auto-import`。
-- 默认正式 Studio artifacts 包含 Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。非音频 artifacts 必须生成并下载落盘；Audio Overview 发起后若尚未完成，可以先记录 `in_progress` / `not_found` / `failed` 与目标路径，未来跑其它 session 时顺手补查，完成后再公开 notebook link access、写回 share URL 并下载 `audio.m4a`。
+- 默认正式 Studio artifacts 包含 Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。非音频 artifacts 必须生成并下载落盘；Audio Overview 对当前 session 只发起并记录 `requested` / `in_progress`，不等待 completed、不公开 notebook、不写 share URL。后续新 session 开始时才批量补查旧 pending audio，完成后再公开 notebook link access 并写回 share URL。
 - 术语边界：用户说“不要视频 / 只要音频”只表示不生成 Video Overview；不能理解为跳过 Study Guide/report、quiz、flashcards、mind map。
 - 项目采用 private living instance + public template：私有仓可保存真实 `vault/` digest；公开模板仓只放工具、文档、Viewer 与空 `vault/` 壳。raw transcript、媒体二进制、凭证与本地运行态不进 Git；NotebookLM artifact share URL 可进私有 vault metadata，但不进入公开模板投影。
 - `synthesis.md` 应偏未来复用的知识卡片，不是普通观看笔记。
@@ -156,7 +156,7 @@ MVP 已通过；最初用 3 个真实样本验证：
 - 一个新建 NotebookLM notebook。
 - `source.yaml`，含 URL、NotebookLM id、research 记录、artifact 状态、audio share URL 或 pending 状态、proposed/approved topics。
 - `notebooklm/` 下的结构化输出。
-- `notebooklm/artifacts/` 下的正式 NotebookLM Studio artifacts：`report-study-guide.md`、quiz、flashcards、mind map、`artifact-status.json`，以及音频完成后的 `audio.m4a`。
+- `notebooklm/artifacts/` 下的正式 NotebookLM Studio artifacts：`report-study-guide.md`、quiz、flashcards、mind map、`artifact-status.json`，以及音频完成后的 share URL metadata。
 - `notes/` 下的个人追问和理解。
 - 知识卡片式 `synthesis.md`。
 - 结束时展示默认 approved topics；若你有疑问或觉得不对，再修订 topic 归属。

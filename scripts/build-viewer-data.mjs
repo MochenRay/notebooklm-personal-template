@@ -246,6 +246,18 @@ function declaredArtifactPaths(source) {
   return paths;
 }
 
+function audioSnapshot(source) {
+  const audio = isPlainObject(source?.notebooklm?.artifacts?.audio) ? source.notebooklm.artifacts.audio : {};
+  return {
+    id: typeof audio.id === "string" ? audio.id : "",
+    status: typeof audio.status === "string" ? audio.status : "",
+    shareUrl: typeof audio.share_url === "string" ? audio.share_url : "",
+    checkedAt: typeof audio.checked_at === "string" ? audio.checked_at : "",
+    createdAt: typeof audio.created_at === "string" ? audio.created_at : "",
+    sourceIds: stringArray(audio.source_ids),
+  };
+}
+
 function stringArray(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 }
@@ -516,6 +528,7 @@ function buildSessions(findings) {
         profile: source?.notebooklm?.profile || "",
         conversationId: source?.notebooklm?.conversation_id || "",
         research,
+        audio: audioSnapshot(source),
         artifactCoverage: coverage,
       },
       content: {

@@ -25,7 +25,7 @@
 
 ## Studio Artifacts
 
-默认策略：生成并落盘 Study Guide/report、quiz、flashcards、mind map，并发起 Audio Overview。Audio Overview 耗时较长时可先记录“生成中/未完成”，后续 session 顺手补查；completed 后再写 share URL 并下载 `audio.m4a`。
+默认策略：生成并落盘 Study Guide/report、quiz、flashcards、mind map，并发起 Audio Overview。Audio Overview 对当前 session 只记录 pending 与 `audio-index`；后续新 session 开始时才批量补查旧 pending，completed 后只写 share URL，本地不保存音频二进制。
 
 “不要视频 / 只要音频”只表示不生成 Video Overview，不影响 Study Guide/report、quiz、flashcards、mind map。
 
@@ -72,12 +72,11 @@ Audio Overview：
 
 状态与分享：
 
-- [ ] `nlm studio status --profile learning <notebook_id> --json`
-- [ ] `npm run share:artifacts -- "vault/sessions/YYYY/MM/<slug>"`
+- [ ] 写 `source.yaml` 的 `notebooklm.artifacts.audio.status`
+- [ ] 写或更新 `vault/notebooklm/audio-index.yaml`
 - [ ] `notebooklm/artifacts/artifact-status.json`
-- [ ] `notebooklm.artifacts.audio.share_url` 或 pending/failed 状态
-- [ ] `completed_audio_artifacts`
-- [ ] `notebooklm/artifacts/audio.m4a`（completed 后必须下载；媒体文件不进 Git）
+- [ ] `notebooklm.artifacts.audio.status` 为 `requested` / `in_progress`
+- [ ] 当前 session 不等待 completed，不写 `share_url`
 
 ## Topics
 

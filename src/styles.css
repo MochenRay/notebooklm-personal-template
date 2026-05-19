@@ -1489,6 +1489,54 @@ select {
   gap: 9px;
 }
 
+.audio-status-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 24px;
+  padding: 18px 20px;
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid #6f7f5c;
+  background: #fbfbf7;
+}
+
+.audio-status-panel.warn {
+  border-left-color: #b06b48;
+  background: #fff8f3;
+}
+
+.audio-status-panel.ready {
+  border-left-color: #3f7d69;
+  background: #f5fbf8;
+}
+
+.audio-status-panel h2 {
+  margin: 4px 0 0;
+  color: #151515;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.audio-status-panel p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.audio-play-link {
+  flex: 0 0 auto;
+  color: #193a32;
+  font-size: 14px;
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.audio-play-link.disabled {
+  color: var(--muted);
+  font-weight: 650;
+}
+
 .reader-section {
   scroll-margin-top: 24px;
   margin-top: 48px;
@@ -1536,13 +1584,19 @@ select {
   font-size: 14px;
 }
 
-.notebooklm-output-block {
+.reading-subblock {
   margin-top: 46px;
   padding-top: 30px;
   border-top: 1px solid var(--line-strong);
 }
 
-.notebooklm-output-block > .collapsible-title {
+.collapsible-body > .reading-subblock:first-child {
+  margin-top: 6px;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.reading-subblock > .collapsible-title {
   margin: 0 0 22px;
   color: #151515;
   font-size: 24px;

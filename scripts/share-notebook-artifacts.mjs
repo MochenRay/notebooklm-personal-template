@@ -19,6 +19,12 @@ function artifactShareUrl(notebookId, artifactId) {
   return `https://notebooklm.google.com/notebook/${notebookId}/artifact/${artifactId}`;
 }
 
+function removeLegacyAudioDownloadFields(audio) {
+  for (const field of ["downloaded", "downloaded_path", "downloaded_at", "path", ["target", "path"].join("_")]) {
+    delete audio[field];
+  }
+}
+
 async function runNlm(args) {
   const { stdout } = await execFileAsync("nlm", args, {
     encoding: "utf8",
@@ -45,13 +51,19 @@ function mergeArtifactStatus(existing, studioArtifacts, notebookId) {
     existingArtifacts(existing).map((item) => [item.id, item]),
   );
 
-  return studioArtifacts.map((artifact) => ({
-    ...ensureObject(existingById.get(artifact.id)),
-    id: artifact.id,
-    type: artifact.type,
-    status: artifact.status,
-    share_url: artifactShareUrl(notebookId, artifact.id),
-  }));
+  return studioArtifacts.map((artifact) => {
+    const existing = ensureObject(existingById.get(artifact.id));
+    if (artifact.type === "audio") {
+      removeLegacyAudioDownloadFields(existing);
+    }
+    return {
+      ...existing,
+      id: artifact.id,
+      type: artifact.type,
+      status: artifact.status,
+      share_url: artifactShareUrl(notebookId, artifact.id),
+    };
+  });
 }
 
 function existingArtifacts(status) {
@@ -128,10 +140,9 @@ async function main() {
       status: currentAudioArtifact?.status || source.notebooklm.artifacts.audio?.status || "not_found",
       completed_audio_artifacts: [],
       public_access_required: true,
-      downloaded: false,
-      target_path: source.notebooklm.artifacts.audio?.target_path || "notebooklm/artifacts/audio.m4a",
       checked_at: updatedAt,
     };
+    removeLegacyAudioDownloadFields(source.notebooklm.artifacts.audio);
     source.status = ensureObject(source.status);
     source.status.stage = currentAudioArtifact?.status
       ? `synthesized_audio_${currentAudioArtifact.status}`
@@ -146,7 +157,7 @@ async function main() {
     writeJson(artifactStatusPath, artifactStatus);
 
     const statusSummary = audioStatusSummary(audioArtifacts);
-    const processLogEntry = `- \`npm run share:artifacts -- ${relativeSessionDir}\`: audio not completed; statuses: ${statusSummary}. Notebook sharing unchanged; download skipped.\n`;
+    const processLogEntry = `- \`npm run share:artifacts -- ${relativeSessionDir}\`: audio not completed; statuses: ${statusSummary}. Notebook sharing unchanged; local audio download skipped by design.\n`;
     if (!existingProcessLog.includes(processLogEntry.trim())) {
       const separator = existingProcessLog.endsWith("\n") ? "" : "\n";
       fs.writeFileSync(processLogPath, `${existingProcessLog}${separator}${processLogEntry}`, "utf8");
@@ -180,18 +191,10 @@ async function main() {
     note: "NotebookLM artifact URLs require notebook public link access; the pipeline defaults to public link access for playable artifacts.",
   };
 
-  const targetPath =
-    source.notebooklm.artifacts.audio?.path ||
-    source.notebooklm.artifacts.audio?.target_path ||
-    "notebooklm/artifacts/audio.m4a";
-  const targetAbsolutePath = path.resolve(sessionDir, targetPath);
-  fs.mkdirSync(path.dirname(targetAbsolutePath), { recursive: true });
-  await runNlm(["download", "audio", notebookId, "--id", audioArtifact.id, "--output", targetAbsolutePath, "--no-progress"]);
-
   source.notebooklm.artifacts.audio = {
     ...ensureObject(source.notebooklm.artifacts.audio),
     id: audioArtifact.id,
-    status: audioArtifact.status,
+    status: "remote_completed_share_ready",
     share_url: artifactShareUrl(notebookId, audioArtifact.id),
     completed_audio_artifacts: completedAudioArtifacts.map((artifact) => ({
       id: artifact.id,
@@ -199,15 +202,13 @@ async function main() {
       share_url: artifactShareUrl(notebookId, artifact.id),
     })),
     public_access_required: true,
-    downloaded: true,
-    path: targetPath,
-    target_path: targetPath,
-    downloaded_at: updatedAt,
+    checked_at: updatedAt,
   };
+  removeLegacyAudioDownloadFields(source.notebooklm.artifacts.audio);
 
   source.status = ensureObject(source.status);
   if (audioArtifact.status === "completed") {
-    source.status.stage = "synthesized_audio_downloaded";
+    source.status.stage = "synthesized_audio_share_ready";
   }
 
   const dumped = yaml.dump(source, {
@@ -223,16 +224,10 @@ async function main() {
     public_link: source.notebooklm.sharing.public_link,
     updated_at: updatedAt,
   };
-  const downloadedAudioStatus = artifactStatus.artifacts.find((artifact) => artifact.id === audioArtifact.id);
-  if (downloadedAudioStatus) {
-    downloadedAudioStatus.downloaded = true;
-    downloadedAudioStatus.downloaded_path = targetPath;
-    downloadedAudioStatus.downloaded_at = updatedAt;
-  }
   writeJson(artifactStatusPath, artifactStatus);
 
   const completedAudioSummary = completedAudioArtifacts.map((artifact) => artifact.id).join(", ");
-  const processLogEntry = `- \`npm run share:artifacts -- ${relativeSessionDir}\`: set notebook sharing to \`${source.notebooklm.sharing.access}\`; audio share URL \`${source.notebooklm.artifacts.audio.share_url}\`; downloaded audio to \`${targetPath}\`; completed audio artifacts: ${completedAudioSummary}.\n`;
+  const processLogEntry = `- \`npm run share:artifacts -- ${relativeSessionDir}\`: set notebook sharing to \`${source.notebooklm.sharing.access}\`; audio share URL \`${source.notebooklm.artifacts.audio.share_url}\`; completed audio artifacts: ${completedAudioSummary}; local audio download skipped by design.\n`;
   if (!existingProcessLog.includes(source.notebooklm.artifacts.audio.share_url)) {
     const separator = existingProcessLog.endsWith("\n") ? "" : "\n";
     fs.writeFileSync(processLogPath, `${existingProcessLog}${separator}${processLogEntry}`, "utf8");
@@ -245,7 +240,6 @@ async function main() {
         public_link: source.notebooklm.sharing.public_link,
         audio_artifact_id: audioArtifact.id,
         audio_share_url: source.notebooklm.artifacts.audio.share_url,
-        audio_path: source.notebooklm.artifacts.audio.path,
         source_yaml: path.relative(process.cwd(), sourcePath),
         artifact_status: path.relative(process.cwd(), artifactStatusPath),
       },

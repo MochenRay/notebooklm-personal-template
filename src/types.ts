@@ -42,6 +42,15 @@ export interface ResearchSnapshot {
   selectionNote: string;
 }
 
+export interface AudioSnapshot {
+  id: string;
+  status: string;
+  shareUrl: string;
+  checkedAt: string;
+  createdAt: string;
+  sourceIds: string[];
+}
+
 export interface TopicProposal {
   id: string;
   title_zh?: string;
@@ -120,6 +129,7 @@ export interface VaultSession {
     profile: string;
     conversationId: string;
     research: ResearchSnapshot;
+    audio: AudioSnapshot;
     artifactCoverage: ArtifactCoverage;
   };
   content: {

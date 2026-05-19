@@ -146,6 +146,20 @@ async function main() {
     if (bodyText.includes("origin: agent-synthesis") || bodyText.includes("card_type: reusable-knowledge")) {
       throw new Error("frontmatter is visible in session detail");
     }
+    const readingText = await page.locator("#reading").innerText();
+    const notebooklmIndex = readingText.indexOf("NotebookLM 输出");
+    const insightIndex = readingText.indexOf("GPT 洞察");
+    if (notebooklmIndex === -1 || insightIndex === -1 || notebooklmIndex > insightIndex) {
+      throw new Error("session detail reading order must be NotebookLM output before GPT insight");
+    }
+    const insightText = await page.locator("#gpt-insight").innerText();
+    if (/(来源证据|来源事实|NotebookLM 归纳)/.test(insightText)) {
+      throw new Error("GPT insight should not repeat source-fact or NotebookLM-summary sections");
+    }
+    const notebooklmText = await page.locator("#notebooklm").innerText();
+    if (/Agent 推断/.test(notebooklmText)) {
+      throw new Error("NotebookLM output should not include agent inference sections");
+    }
     const rawPracticePreCount = await page.locator("#practice pre").count();
     if (rawPracticePreCount > 0) {
       throw new Error("practice artifacts contain raw pre blocks");

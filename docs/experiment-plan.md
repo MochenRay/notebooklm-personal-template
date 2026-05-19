@@ -12,7 +12,7 @@
   -> 基于主 source 生成 Web Fast Research queries
   -> 选择性导入相关信源
   -> 生成并落盘 Study Guide/report、quiz、flashcards、mind map
-  -> 发起 Audio Overview；完成则分享并下载，未完成则记录 pending
+  -> 发起 Audio Overview，只记录 pending 与 audio-index
   -> 本地 vault 保存过程与结果
   -> Agent 提议 topic 聚合
   -> 默认 approved 并展示给用户
@@ -29,8 +29,8 @@
 - 第一阶段采用 `notebooklm-mcp-cli` 的 `nlm` CLI-first，MCP 可选，暂不引入 `notebooklm-py`。
 - MVP 一条主 source 一个 Notebook；同一 notebook 内可由 Web Fast Research 增补相关信源，跨 session 聚合仍放在本地 `topics/`。
 - 添加主 source 且 ready 后，默认先基于主 source 生成 research queries，再用 Web Fast Research 选择性导入相关信源。
-- 默认生成完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。非音频 artifacts 必须在本轮 session 内下载落盘；Audio Overview 可异步完成。
-- `npm run share:artifacts -- <session-dir>` 是当前音频分享与下载回填脚本：先确认有 `completed` audio，再公开 notebook link access，写回 `share_url`、`completed_audio_artifacts`、sharing 状态、process log，并下载 `notebooklm/artifacts/audio.m4a`；没有 completed audio 时只记录“生成中/未完成”，不公开 notebook、不伪造链接。
+- 默认生成完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。非音频 artifacts 必须在本轮 session 内下载落盘；Audio Overview 当前 session 只发起并记录 pending。
+- `npm run audio:backfill -- --exclude <current-session-dir>` 是音频补档入口：读取 `vault/notebooklm/audio-index.yaml`，只检查旧 pending audio。若远端已有 completed audio，底层 `share:artifacts` 才公开 notebook link access，写回 `share_url`、`completed_audio_artifacts`、sharing 状态和 process log；没有 completed audio 时只记录“生成中/未完成”，不公开 notebook、不伪造链接。
 - 默认不生成 `publish/website.md`；发布投影需明确指令，后续可另抽发布 skill。
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
 - 项目采用 private living instance + public template。私有仓包含真实 `vault/`；公开模板仓只包含工具、文档、Viewer 与空 `vault/` 壳。
@@ -153,7 +153,7 @@
 - `vault/sessions/YYYY/MM/<slug>/source.yaml`
 - `notes/process-log.md`
 - `notebooklm/report.md` 或 `notebooklm/topology.md`
-- `notebooklm/artifacts/` 下的正式 artifacts：Study Guide/report、quiz、flashcards、mind map、artifact status，以及 Audio Overview 的 completed 下载或 pending 状态
+- `notebooklm/artifacts/` 下的正式 artifacts：Study Guide/report、quiz、flashcards、mind map、artifact status，以及 Audio Overview 的 pending 状态或旧补档后的 share URL metadata
 - `notes/questions.md`
 - 知识卡片式 `synthesis.md`
 
@@ -203,7 +203,7 @@
 
 - 默认流程不是删减为单音频流程，而是在原有学习 artifact pack 前增加 source-grounded Web Fast Research。
 - 复盘口径已修正：“不需要视频，只要音频”只表示不生成 Video Overview，不表示把默认流程改成单音频流程。
-- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Study Guide/report、quiz、flashcards、mind map 落盘 -> Audio Overview 发起/检查 -> completed audio 分享并下载，未完成 audio 记录 pending -> 本地 vault 沉淀。
+- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Study Guide/report、quiz、flashcards、mind map 落盘 -> Audio Overview 发起并记录 pending/audio-index -> 本地 vault 沉淀。下一次新 session 开始前再补查旧 pending audio。
 - `source.yaml` 新增 `notebooklm.research`，用于记录 seed queries、research tasks、import policy、imported sources 和最终用于综合与 artifacts 的 selected source ids。
 - Viewer 对 quiz、flashcards、mind map 的读取继续是默认能力；新 session 不应因为 audio 未完成而缺少练习与 mind map artifacts。
 
@@ -211,8 +211,8 @@
 
 - 新增并加固 `scripts/share-notebook-artifacts.mjs` 与 `npm run share:artifacts -- <session-dir>`。
 - 脚本会先读取 `nlm studio status --json`，只有存在 `completed` audio 时才执行 `nlm share public`，避免把未完成或 failed audio 的 notebook 误公开。
-- 脚本写回 `notebooklm.sharing`、`notebooklm.artifacts.audio.share_url`、`completed_audio_artifacts` 和 `notebooklm/artifacts/artifact-status.json`，下载 `notebooklm/artifacts/audio.m4a`，并向 `notes/process-log.md` 追加审计记录。
-- 若 audio 仍在生成、失败或不存在，脚本只写回 checked 状态和目标路径，不公开 notebook、不伪造链接；后续跑其它 session 时可顺手再次检查并补档。
+- 脚本写回 `notebooklm.sharing`、`notebooklm.artifacts.audio.share_url`、`completed_audio_artifacts` 和 `notebooklm/artifacts/artifact-status.json`，并向 `notes/process-log.md` 追加审计记录；不下载本地音频二进制。
+- 若 audio 仍在生成、失败或不存在，脚本只写回 checked 状态，不公开 notebook、不伪造链接；后续跑其它 session 时可再次检查并补档。
 - 兼容旧的 array 形态 `artifact-status.json`，写回时统一为带 `sharing` 与 `artifacts` 的对象形态。
 - 已批量检查 10 个既有 session；当前本地可验证结果为 9 个 session 有 completed audio 并写回分享链接。`how-to-completely-reinvent-yourself-6-12-months` 是早期旧 artifact 样本，本地 `artifact-status.json` 仅记录 infographic、flashcards、quiz、report、mind_map 等 completed artifact，未记录 completed audio，因此未写 `share_url`。
 
@@ -369,7 +369,7 @@ Telegram message with YouTube URL
 
 - 不进入第一阶段 MVP。
 - 不阻塞三样本验证、topic 聚合与 skill 化决策。
-- 不自动发布网站/社媒、不删除远端或本地内容；NotebookLM notebook link access 只在 audio completed 后默认公开，用于让 artifact share URL 可播放。同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别的非 primary source 残留，仍按 pipeline 规则自动清理。
+- 不自动发布网站/社媒；NotebookLM notebook link access 只在旧 pending audio 被后续补档确认为 completed 后默认公开，用于让 artifact share URL 可播放。同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别的非 primary source 残留，仍按 pipeline 规则自动清理。
 
 状态：未来候选。
 

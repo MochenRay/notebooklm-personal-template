@@ -13,7 +13,7 @@ YouTube URL
   -> NotebookLM Web Fast Research 发现并导入相关信源
   -> agent 基于全部 sources 拉回结构化输出
   -> agent 生成并下载 Study Guide/report、quiz、flashcards、mind map
-  -> agent 发起 Audio Overview；完成则分享并下载，未完成则记录 pending
+  -> agent 发起 Audio Overview，只记录 pending 与 audio-index
   -> 本地 notes + synthesis
   -> topic 建议与索引
   -> 默认 approved topics 并展示给用户
@@ -190,12 +190,13 @@ notebooklm/artifacts/
 结构标题本地化规则：
 
 - `notebooklm/report.md`、`notebooklm/topology.md` 和 `synthesis.md` 的阅读结构标题默认用中文。
+- `notebooklm/report.md` 与 `notebooklm/topology.md` 只承载来源事实和 NotebookLM 归纳；agent/GPT 的推断、迁移和边界写入 `synthesis.md`，避免 Viewer 里 NotebookLM 区和 GPT 洞察区互相复述。
 - 区分证据来源时使用 `来源事实`、`NotebookLM 归纳`、`Agent 推断`、`用户原话`。
 - 不要在最终 Markdown 标题里留下 `Source facts`、`NotebookLM synthesis`、`Agent inference`、`Core Report`、`Knowledge Topology` 这类英文结构标签；英文原文术语和专有名词可留在正文或 code span。
 
 ## 阶段 6：生成并落盘 Studio artifacts
 
-默认 artifact 集合是 Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 是同步闭环要求：本轮 session 结束前应创建、下载到 `notebooklm/artifacts/`，并写入 `source.yaml` 与 `artifact-status.json`。Audio Overview 可能耗时较长：必须发起并检查状态，但允许先记录“生成中/未完成”，后续跑其它 session 时顺手补查，完成后再分享和下载。
+默认 artifact 集合是 Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 是同步闭环要求：本轮 session 结束前应创建、下载到 `notebooklm/artifacts/`，并写入 `source.yaml` 与 `artifact-status.json`。Audio Overview 对当前 session 只发起生成并记录 pending：写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，不等待 completed、不公开 notebook、不写 share URL。
 
 若用户说“不要视频 / 只要音频”，只表示跳过 Video Overview；不要把它解释成单音频流程，也不要跳过 Study Guide/report、quiz、flashcards、mind map。
 
@@ -253,25 +254,25 @@ nlm audio create --profile learning <notebook_id> \
   --length default \
   --source-ids <selected_source_ids> \
   --confirm
-nlm studio status --profile learning <notebook_id> --json
-npm run share:artifacts -- "vault/sessions/YYYY/MM/<slug>"
 ```
 
-`share:artifacts` 先读取 `nlm studio status --json`。只有存在 completed audio 时，才执行 `nlm share public`、读取 `nlm share status --json`，把 `notebooklm.sharing.public_link` 与 `notebooklm.artifacts.audio.share_url` 写回 `source.yaml`，并下载 `notebooklm/artifacts/audio.m4a`。NotebookLM artifact URL 依赖 notebook public link access；因此 Pipeline 默认在音频完成后公开 notebook link access，但这不等于生成网站草稿、同步公开仓或发布社媒。
+当前 session 末尾只记录：
 
-脚本必须先确认 `nlm studio status --json` 中存在 `type: audio` 且 `status: completed` 的 artifact，再执行 `nlm share public`。写回时保留所有 completed audio 的 `completed_audio_artifacts`，同时选择一个主 `share_url` 供 Viewer 和后续 agent 使用。若 audio 仍是 `in_progress`、`failed` 或不存在，记录状态、`checked_at` 与 `target_path`，不公开 notebook、不伪造链接、不把音频写成完成。
+- `source.yaml` 中的 `notebooklm.artifacts.audio.status: requested` 或 `in_progress`、`source_ids`、`created_at`、`checked_at`。
+- `vault/notebooklm/audio-index.yaml` 中的补档队列记录。
+- `notes/process-log.md` 中的 create 命令和“不在当前 session 等待音频”的说明。
 
-若要基于全部来源，可不传 `--source-ids`，但默认优先显式传入筛选后的 source ids。`notes/process-log.md` 必须记录 create/status/share/download 命令、audio artifact id、ready/failed/pending 状态、share URL 和本地 `audio.m4a` 路径。下载失败时记录到 `source.yaml` 与 `process-log.md`，不要把失败误写成已完成。
+若要基于全部来源，可不传 `--source-ids`，但默认优先显式传入筛选后的 source ids。`notes/process-log.md` 必须记录 create 命令、source ids、pending 状态和未来补档入口。当前 session 不运行 `nlm share public`，不写 `share_url`，本地不保存音频二进制。
 
 ### 既有 session 音频回填
 
-当用户要求批量检查既有 session，或 agent 在处理新 session 前后发现历史 session 仍有 `audio.downloaded: false`、`status: in_progress`、`status: not_found` 等状态时，先只读轮询各 notebook 的 `nlm studio status --json`。对已有 completed audio 的 session，再逐个运行：
+当用户要求批量检查既有 session，或 agent 开始处理新 session 时，先读取 `vault/notebooklm/audio-index.yaml`，排除当前 session，只处理旧 pending 记录：
 
 ```bash
-npm run share:artifacts -- "vault/sessions/YYYY/MM/<slug>"
+npm run audio:backfill -- --exclude "vault/sessions/YYYY/MM/<current-slug>"
 ```
 
-回填结果应写入 `source.yaml`、`notebooklm/artifacts/artifact-status.json` 和 `notes/process-log.md`。completed audio 要写 share URL 并下载 `audio.m4a`；失败或未完成 audio 只记录状态，不公开 notebook，不下载二进制音频。
+`audio:backfill` 会对候选旧 notebook 读取 `nlm studio status --json`。只有存在 completed audio 时，才调用 `npm run share:artifacts -- <session-dir>`，执行 `nlm share public`，写回 `source.yaml`、`notebooklm/artifacts/artifact-status.json`、`notes/process-log.md` 和 index 中的 `share_url`。失败或未完成 audio 只记录状态，不公开 notebook，不下载二进制音频。
 
 ## 阶段 7：本地二次消化
 
@@ -281,7 +282,7 @@ agent 基于本地文件写：
 - `notes/my-notes.md`：若用户已有表达，保留用户原话；若没有，先留空或写“待用户补充”。
 - `synthesis.md`：知识卡片，区分 NotebookLM 输出与 agent 推断。
 
-`synthesis.md` 是本地沉淀的核心，不是 NotebookLM 单次回答的复制，也不是普通观看笔记。它应能被未来 Codex/Gemini 直接复用。
+`synthesis.md` 是本地沉淀的核心，不是 NotebookLM 单次回答的复制，也不是普通观看笔记。它必须基于 `notebooklm/report.md` 与 `notebooklm/topology.md` 生成 agent/GPT 的二阶洞察：只保留命题、迁移、边界、未解问题和最小依据；若内容与 NotebookLM 输出重复，应删掉或改写为更高一层的判断。它应能被未来 Codex/Gemini 直接复用。
 
 ## 阶段 8：topic 建议
 
@@ -347,7 +348,7 @@ status:
 - `source.yaml` 的状态。
 - `source_ids`、`primary_source_id`、失败 add-source 残留的自动清理记录，或无法自动清理的异常原因。
 - `notes/process-log.md`。
-- `notebooklm/artifacts/` 的 report、quiz、flashcards、mind map、artifact status，以及 audio share URL / pending 状态 / `audio.m4a` 路径。
+- `notebooklm/artifacts/` 的 report、quiz、flashcards、mind map、artifact status，以及 audio pending 状态或旧补档后的 share URL。
 - `vault/notebooklm/notebooks.yaml`。
 - topic proposed/approved 状态。
 - 若 session、topic 或 notebook mapping 有变化，运行 `npm run build:data` 刷新 `.viewer-data`；如改动影响 Viewer UI 或 projection contract，再运行 `npm run smoke`。
