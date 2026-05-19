@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { marked } from "marked";
 import ForceGraph2D, { type ForceGraphMethods, type GraphData, type LinkObject, type NodeObject } from "react-force-graph-2d";
-import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import {
   allTopicIds,
   healthData,
@@ -1455,21 +1455,37 @@ function PracticeHeader({
 
 function MindmapTree({ node }: { node: MindmapNode }) {
   const viewportRef = useRef<HTMLDivElement>(null);
+  const pendingScrollAnchorRef = useRef<{ id: string; left: number; top: number } | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const layout = useMemo(() => buildMindmapLayout(node, expandedIds), [expandedIds, node]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const anchor = pendingScrollAnchorRef.current;
     const viewport = viewportRef.current;
-    if (!viewport) return;
+    if (!anchor || !viewport) return;
 
-    const frame = window.requestAnimationFrame(() => {
-      viewport.scrollTop = 0;
-      viewport.scrollLeft = 0;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [layout.height, layout.width]);
+    const target = viewport.querySelector<HTMLElement>(`[data-mindmap-node-id="${anchor.id}"]`);
+    pendingScrollAnchorRef.current = null;
+    if (!target) return;
 
-  const toggleNode = (id: string) => {
+    const viewportRect = viewport.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    viewport.scrollLeft += targetRect.left - viewportRect.left - anchor.left;
+    viewport.scrollTop += targetRect.top - viewportRect.top - anchor.top;
+  }, [layout]);
+
+  const toggleNode = (id: string, target: HTMLButtonElement) => {
+    const viewport = viewportRef.current;
+    if (viewport) {
+      const viewportRect = viewport.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      pendingScrollAnchorRef.current = {
+        id,
+        left: targetRect.left - viewportRect.left,
+        top: targetRect.top - viewportRect.top,
+      };
+    }
+
     setExpandedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) {
@@ -1513,7 +1529,7 @@ function MindmapNodeCard({
 }: {
   expanded: boolean;
   node: MindmapLayoutNode;
-  onToggle: (id: string) => void;
+  onToggle: (id: string, target: HTMLButtonElement) => void;
 }) {
   const hasChildren = node.childCount > 0;
   const canToggle = hasChildren && node.depth > 0;
@@ -1527,8 +1543,9 @@ function MindmapNodeCard({
         hasChildren && displayExpanded ? "expanded" : "collapsed",
       ].join(" ")}
       disabled={!canToggle}
-      onClick={() => {
-        if (canToggle) onToggle(node.id);
+      data-mindmap-node-id={node.id}
+      onClick={(event) => {
+        if (canToggle) onToggle(node.id, event.currentTarget);
       }}
       style={{
         height: node.height,
