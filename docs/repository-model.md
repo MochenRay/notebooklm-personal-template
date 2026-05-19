@@ -45,12 +45,14 @@ origin -> https://github.com/MochenRay/notebooklm-personal.git
 - `vault/sessions/.gitkeep`
 - `vault/topics/.gitkeep`
 - `vault/notebooklm/.gitkeep`
+- `vault/notebooklm/audio-index.yaml`（仅空队列或无真实 ID 的示例结构）
 
 不得包含：
 
 - `vault/sessions/**` 的真实 session digest
 - `vault/topics/**/index.md` 的真实 topic digest
 - `vault/notebooklm/notebooks.yaml`
+- 含真实 notebook id、audio artifact id、source id 或 share URL 的 `vault/notebooklm/audio-index.yaml`
 - NotebookLM notebook id、source id、artifact share URL 等真实 vault metadata
 - `.viewer-data/`
 - `raw/`

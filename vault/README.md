@@ -9,6 +9,7 @@ instance can add real digest content under:
 vault/sessions/YYYY/MM/<session-id>/
 vault/topics/<topic-id>/
 vault/notebooklm/notebooks.yaml
+vault/notebooklm/audio-index.yaml
 ```
 
 The viewer and build scripts are designed to work with both states:
@@ -28,3 +29,7 @@ Do not commit private transcripts, credentials, cookies, or raw media to a
 public repository. NotebookLM notebook ids, source ids, artifact share URLs,
 `.viewer-data/`, and local health findings also stay out of the public template
 unless a separate sanitized projection is explicitly produced.
+
+`vault/notebooklm/audio-index.yaml` is only a backfill queue for old pending
+Audio Overview artifacts. The per-session `source.yaml` remains the truth for
+that session; the index can be cleared or rebuilt when the vault is reset.

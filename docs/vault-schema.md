@@ -42,7 +42,7 @@ vault/
               flashcards.md
               flashcards.html
               mindmap.json
-              audio.m4a   # completed 后下载；媒体文件不进 Git
+              # Audio Overview 不保存本地二进制，只保存状态与 share URL metadata
           notes/
             process-log.md
             questions.md
@@ -158,7 +158,7 @@ notebooklm:
       downloaded_at: ""
     audio:
       id: ""
-      status: pending
+      status: requested
       format: deep_dive
       length: default
       source_ids: []
@@ -168,8 +168,7 @@ notebooklm:
         - id: ""
           status: completed
           share_url: ""
-      downloaded: false
-      target_path: notebooklm/artifacts/audio.m4a
+      created_at: ""
       checked_at: ""
   sharing:
     access: ""
@@ -271,7 +270,6 @@ notebooklm-personal/
 - `artifacts/flashcards.md`
 - `artifacts/flashcards.html`
 - `artifacts/mindmap.json`
-- `artifacts/audio.m4a`（audio completed 后下载；媒体文件不进 Git）
 - `slides.pdf`
 - `slides.pptx`
 
@@ -318,13 +316,36 @@ based_on:
 - Quiz：`quiz.json`、`quiz.md`、`quiz.html`
 - Flashcards：`flashcards.json`、`flashcards.md`、`flashcards.html`
 - Mind map：`mindmap.json`
-- Audio Overview：`audio.m4a` 在远端 completed 后下载；未完成时先记录 `status`、`checked_at` 与 `target_path`
+- Audio Overview：当前 session 只发起生成；记录 `status`、`source_ids`、`created_at` 与 `checked_at`。远端 completed 后由后续补档写入 `share_url`，不下载本地音频二进制。
 
-前四类 artifacts 必须在本轮 session 内生成并下载落盘。Audio Overview 也必须发起，但可异步完成：如果 `nlm studio status` 仍显示 `in_progress`、`failed` 或没有 audio artifact，只记录状态，不公开 notebook、不伪造链接；后续 session 可再次运行 `npm run share:artifacts -- <session-dir>` 补查，完成后公开 notebook link access、写入 `notebooklm.artifacts.audio.share_url` 并下载 `audio.m4a`。
+前四类 artifacts 必须在本轮 session 内生成并下载落盘。Audio Overview 也必须发起，但当前 session 不等待完成、不公开 notebook、不伪造链接。后续 session 开始时运行 `npm run audio:backfill -- --exclude <current-session-dir>`，只对旧 pending audio 做补查；完成后公开 notebook link access 并写入 `notebooklm.artifacts.audio.share_url`。
 
-`artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、share_url、generated_at、checked_at、downloaded_at 和 sharing 状态。若某项失败，保留失败状态与错误摘要。
+`artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、share_url、generated_at、checked_at 和 sharing 状态。若某项失败，保留失败状态与错误摘要。
 
 `completed_audio_artifacts` 用于记录同一 notebook 下所有已完成的 audio artifacts。`share_url` 是当前 session 默认展示/播放用的主链接；若未来需要切换到另一个完成音频，可以只改主 `id` 与 `share_url`，保留列表用于追溯。
+
+### `vault/notebooklm/audio-index.yaml`
+
+`audio-index.yaml` 是音频补档队列，不是 session 最终事实层。`source.yaml` 仍是单条 session truth；index 只帮助下一次运行快速找到旧 pending audio。
+
+```yaml
+version: 1
+updated_at: ""
+entries:
+  - session_id: ""
+    session_path: vault/sessions/YYYY/MM/<slug>
+    notebook_id: ""
+    audio_artifact_id: ""
+    status: requested
+    share_url: ""
+    created_at: ""
+    last_checked_at: ""
+    next_check_after: ""
+    check_count: 0
+    source_ids: []
+```
+
+允许的 `status`：`requested`、`in_progress`、`failed`、`remote_completed_share_ready`、`skipped`。
 
 video、slides、infographic 等仍为显式请求或后续扩展。Viewer 和 health check 必须继续兼容既有 session 中不同时间产生的 artifact 形态。
 
@@ -342,7 +363,7 @@ video、slides、infographic 等仍为显式请求或后续扩展。Viewer 和 h
 
 若 source 添加过程中出现失败后远端残留，fallback 成功后应自动删除可明确识别的失败残留 source。`source_ids` 保留清理后的远端实际 source 清单，`primary_source_id` 指向后续 query 与 artifacts 使用的 ready source，`source_note` 说明失败命令、fallback、被自动删除的 failed source id、删除命令与删除后验证结果。结构化字段写入 `cleanup.auto_deleted_failed_source_ids`；无法自动清理时写入 `cleanup.unresolved_source_ids` 与 `cleanup.cleanup_note`，并说明未自动删除原因。只有无法确认身份、不是本轮失败尝试产生、或可能被用户/其它流程使用的 source 才保留为异常。删除其它 source/notebook 仍是不可逆操作，必须等用户明确确认。
 
-`notebooklm/report.md`、`notebooklm/topology.md` 若经过 agent 整理供 Viewer 阅读，Markdown 标题默认使用中文结构标签，例如 `核心报告`、`知识拓扑`、`来源事实`、`NotebookLM 归纳`、`Agent 推断`。不要把 `Source facts`、`NotebookLM synthesis`、`Agent inference` 等英文结构标题写入最终展示文件。
+`notebooklm/report.md`、`notebooklm/topology.md` 若经过 agent 整理供 Viewer 阅读，Markdown 标题默认使用中文结构标签，例如 `核心报告`、`知识拓扑`、`来源事实`、`NotebookLM 归纳`。这两个文件不再写 `Agent 推断` 小节；agent/GPT 的推断、迁移和边界进入 `synthesis.md`。不要把 `Source facts`、`NotebookLM synthesis`、`Agent inference` 等英文结构标题写入最终展示文件。
 
 ## `notes/`
 
@@ -361,7 +382,8 @@ video、slides、infographic 等仍为显式请求或后续扩展。Viewer 和 h
 
 - 命题。
 - 适用场景。
-- 来源证据。
+- 洞察依据：只列支撑二阶判断的最小依据，不复写 NotebookLM 的来源事实清单。
+- 弥合增量：说明 NotebookLM 已覆盖什么、agent/GPT 额外补了什么判断、迁移或边界。
 - 反例与边界。
 - 可迁移用法。
 - 关联 topics（正文标题可写 `建议归类`、`已确认`；结构化字段仍保留 `proposed` / `approved`）。

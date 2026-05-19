@@ -840,6 +840,7 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
   const sourceLabel = sourceDomain(session.url) || session.sourceType || "来源";
   const tocGroups = useMemo(() => buildSessionTocGroups(session), [session]);
   const hasPractice = Boolean(session.practice.flashcards || session.practice.quiz);
+  const insightMarkdown = useMemo(() => sessionInsightMarkdown(session.content.synthesis), [session.content.synthesis]);
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(() => new Set());
   const toggleCollapsed = (id: string) => {
     setCollapsedIds((current) => {
@@ -893,6 +894,8 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
           </div>
         </header>
 
+        {session.notebooklm.audio.status ? <AudioStatusPanel session={session} /> : null}
+
         {session.practice.mindmap ? (
           <CollapsibleBlock
             bodyClassName="mindmap-overview-body"
@@ -915,18 +918,10 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
           onToggle={toggleCollapsed}
           title="阅读"
         >
-          <MarkdownView
-            collapsedIds={collapsedIds}
-            headingBaseLevel={3}
-            headingPrefix="synthesis"
-            markdown={cleanSessionSynthesisMarkdown(session.content.synthesis)}
-            onToggleHeading={toggleCollapsed}
-          />
-
           <CollapsibleBlock
             bodyClassName="notebooklm-output-body"
             collapsed={collapsedIds.has("notebooklm")}
-            className="notebooklm-output-block"
+            className="reading-subblock notebooklm-output-block"
             id="notebooklm"
             level={3}
             onToggle={toggleCollapsed}
@@ -936,16 +931,34 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
             <ContentBlock
               collapsedIds={collapsedIds}
               id="report"
-              markdown={session.content.report}
+              markdown={notebooklmOutputMarkdown(session.content.report)}
               onToggleHeading={toggleCollapsed}
               title="学习报告"
             />
             <ContentBlock
               collapsedIds={collapsedIds}
               id="topology"
-              markdown={session.content.topology}
+              markdown={notebooklmOutputMarkdown(session.content.topology)}
               onToggleHeading={toggleCollapsed}
               title="知识拓扑"
+            />
+          </CollapsibleBlock>
+
+          <CollapsibleBlock
+            collapsed={collapsedIds.has("gpt-insight")}
+            className="reading-subblock gpt-insight-block"
+            id="gpt-insight"
+            level={3}
+            onToggle={toggleCollapsed}
+            tag="div"
+            title="GPT 洞察"
+          >
+            <MarkdownView
+              collapsedIds={collapsedIds}
+              headingBaseLevel={4}
+              headingPrefix="insight"
+              markdown={insightMarkdown}
+              onToggleHeading={toggleCollapsed}
             />
           </CollapsibleBlock>
         </CollapsibleBlock>
@@ -968,6 +981,34 @@ function SessionDetail({ section, session }: { section?: string; session: VaultS
         <SessionToc groups={tocGroups} onNavigate={navigateToSection} session={session} />
       </aside>
     </div>
+  );
+}
+
+function AudioStatusPanel({ session }: { session: VaultSession }) {
+  const audio = session.notebooklm.audio;
+  const label = audioStatusLabel(audio.status, audio.shareUrl);
+  const tone = audioStatusTone(audio.status, audio.shareUrl);
+  const meta = [
+    audio.id ? `artifact ${audio.id}` : "",
+    audio.checkedAt ? `检查 ${formatDateTime(audio.checkedAt)}` : "",
+    audio.sourceIds.length ? `${audio.sourceIds.length} 个 source` : "",
+  ].filter(Boolean);
+
+  return (
+    <section className={`audio-status-panel ${tone}`} aria-label="Audio Overview 状态">
+      <div>
+        <p className="rail-label">Audio Overview</p>
+        <h2>{label}</h2>
+        {meta.length ? <p>{meta.join(" / ")}</p> : null}
+      </div>
+      {audio.shareUrl ? (
+        <a className="audio-play-link" href={audio.shareUrl} target="_blank" rel="noreferrer">
+          播放链接
+        </a>
+      ) : (
+        <span className="audio-play-link disabled">等待后续补档</span>
+      )}
+    </section>
   );
 }
 
@@ -1666,6 +1707,26 @@ function formatMonthDay(date?: string) {
   return date.length >= 10 ? date.slice(5, 10) : date;
 }
 
+function formatDateTime(date?: string) {
+  if (!date) return "";
+  return date.length >= 16 ? date.slice(0, 16).replace("T", " ") : date;
+}
+
+function audioStatusLabel(status: string, shareUrl: string) {
+  if (shareUrl || status === "remote_completed_share_ready") return "可播放链接已就绪";
+  if (status === "requested") return "已发起生成";
+  if (status === "in_progress" || status === "pending") return "远端生成中";
+  if (status === "failed") return "生成失败待复核";
+  if (status === "not_found") return "尚未发现音频";
+  return status || "未记录";
+}
+
+function audioStatusTone(status: string, shareUrl: string) {
+  if (shareUrl || status === "remote_completed_share_ready") return "ready";
+  if (status === "failed" || status === "not_found") return "warn";
+  return "pending";
+}
+
 function compareTopicsBySignal(left: VaultTopic, right: VaultTopic) {
   const countDelta = right.count - left.count;
   if (countDelta !== 0) return countDelta;
@@ -1761,9 +1822,9 @@ function strongestRelatedSessions(session: VaultSession): SessionRelatedItem[] {
 }
 
 function buildSessionTocGroups(session: VaultSession): SessionTocGroup[] {
-  const synthesisItems = buildMarkdownTocItems(cleanSessionSynthesisMarkdown(session.content.synthesis), "synthesis", 1, 3);
-  const reportItems = buildMarkdownTocItems(session.content.report, "report", 1, 3);
-  const topologyItems = buildMarkdownTocItems(session.content.topology, "topology", 1, 3);
+  const insightItems = buildMarkdownTocItems(sessionInsightMarkdown(session.content.synthesis), "insight", 1, 3);
+  const reportItems = buildMarkdownTocItems(notebooklmOutputMarkdown(session.content.report), "report", 1, 3);
+  const topologyItems = buildMarkdownTocItems(notebooklmOutputMarkdown(session.content.topology), "topology", 1, 3);
   const groups: SessionTocGroup[] = [];
 
   if (session.practice.mindmap) {
@@ -1780,11 +1841,15 @@ function buildSessionTocGroups(session: VaultSession): SessionTocGroup[] {
     label: "阅读",
     icon: BookOpen,
     items: [
-      ...synthesisItems,
       {
         id: "notebooklm",
         label: "NotebookLM 输出",
         children: [...reportItems, ...topologyItems],
+      },
+      {
+        id: "gpt-insight",
+        label: "GPT 洞察",
+        children: insightItems,
       },
     ],
   });
@@ -1969,6 +2034,20 @@ function localizedHeading(heading: string) {
 
 function cleanSessionSynthesisMarkdown(markdown: string) {
   return removeMarkdownSections(markdown, ["关联 topics", "关联 topic", "topics", "公开价值"]);
+}
+
+function sessionInsightMarkdown(markdown: string) {
+  return removeMarkdownSections(cleanSessionSynthesisMarkdown(markdown), [
+    "来源证据",
+    "来源事实",
+    "source facts",
+    "notebooklm 归纳",
+    "notebooklm synthesis",
+  ]);
+}
+
+function notebooklmOutputMarkdown(markdown: string) {
+  return removeMarkdownSections(markdown, ["Agent 推断", "Agent inference", "用户原话"]);
 }
 
 function removeMarkdownSections(markdown: string, headings: string[]) {
