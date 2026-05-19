@@ -19,7 +19,7 @@
 
 - 工具代码、Viewer、脚本、模板与文档
 - agent-facing Markdown 文档
-- 真实 `vault/` digest：sessions、topics、NotebookLM mapping、artifacts、notes
+- 真实 `vault/` digest：sessions、topics、NotebookLM mapping、artifacts、notes、NotebookLM share URL metadata
 
 默认远端：
 
@@ -51,6 +51,7 @@ origin -> https://github.com/MochenRay/notebooklm-personal.git
 - `vault/sessions/**` 的真实 session digest
 - `vault/topics/**/index.md` 的真实 topic digest
 - `vault/notebooklm/notebooks.yaml`
+- NotebookLM notebook id、source id、artifact share URL 等真实 vault metadata
 - `.viewer-data/`
 - `raw/`
 - credentials、cookies、tokens、local runtime
@@ -94,7 +95,7 @@ raw/
 .DS_Store
 ```
 
-若只是工具、Viewer、脚本或文档改动，可同步到 public template。
+若只是工具、Viewer、脚本、模板或文档改动，可同步到 public template。文档中的 schema 示例可以保留空字段，但不能夹带真实 notebook id、source id、share URL 或本地绝对路径。
 
 ## 本地 checkout 现状
 

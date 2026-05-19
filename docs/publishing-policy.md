@@ -8,6 +8,8 @@
 
 NotebookLM Pipeline 默认不生成发布草稿。发布投影必须由用户明确触发，或由后续发布 skill 触发。
 
+NotebookLM notebook link access 是一个例外边界：Pipeline 为了让 Audio Overview artifact link 可播放，会在确认 completed audio 后把 notebook 设为 public link access，并把链接写入私有 `vault/` metadata。这不等于生成公开稿、不等于同步 public template，也不等于发布到个人网站或社媒。
+
 显式发布时可生成：
 
 ```text
@@ -39,7 +41,7 @@ publish/social-linkedin.md
 - 长文复盘。
 - 工具/项目方法论。
 
-网站只读 `publish/`，不读 `raw/`、完整 `notebooklm/` 或私人 `notes/`。
+网站只读 `publish/` 或另行生成的 sanitized public projection，不读 `raw/`、完整 `notebooklm/`、`.viewer-data/` 或私人 `notes/`。
 
 ## 社媒草稿
 
@@ -70,3 +72,4 @@ publish/social-linkedin.md
 - 无完整 transcript 或大段原文。
 - 无误导性归因。
 - 无把 agent 推断误写成用户观点。
+- 无 NotebookLM notebook id、artifact share URL、本地 vault path 或 private health finding，除非用户明确决定公开且已单独脱敏。

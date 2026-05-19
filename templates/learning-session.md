@@ -25,7 +25,9 @@
 
 ## Studio Artifacts
 
-默认策略：只生成 Audio Overview；不默认生成 video、report、quiz、flashcards、mind map。
+默认策略：生成并落盘 Study Guide/report、quiz、flashcards、mind map，并发起 Audio Overview。Audio Overview 耗时较长时可先记录“生成中/未完成”，后续 session 顺手补查；completed 后再写 share URL 并下载 `audio.m4a`。
+
+“不要视频 / 只要音频”只表示不生成 Video Overview，不影响 Study Guide/report、quiz、flashcards、mind map。
 
 ## Research
 
@@ -45,17 +47,37 @@ Fast Research：
 - Research task IDs：
 - Import policy：
 - Imported source IDs：
-- Selected source IDs for audio：
+- Selected source IDs for artifacts：
 
-生成命令：
+非音频 artifacts 生成与下载：
+
+- [ ] `nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <selected_source_ids> --confirm`
+- [ ] `nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <selected_source_ids> --confirm`
+- [ ] `nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <selected_source_ids> --confirm`
+- [ ] `nlm mindmap create --profile learning <notebook_id> --title "Mind Map" --source-ids <selected_source_ids> --confirm`
+- [ ] `nlm studio status --profile learning <notebook_id> --json`
+- [ ] `nlm download report <notebook_id> --id <report_artifact_id> --output ".../notebooklm/artifacts/report-study-guide.md"`
+- [ ] `nlm download quiz <notebook_id> --id <quiz_artifact_id> --format json --output ".../notebooklm/artifacts/quiz.json"`
+- [ ] `nlm download quiz <notebook_id> --id <quiz_artifact_id> --format markdown --output ".../notebooklm/artifacts/quiz.md"`
+- [ ] `nlm download quiz <notebook_id> --id <quiz_artifact_id> --format html --output ".../notebooklm/artifacts/quiz.html"`
+- [ ] `nlm download flashcards <notebook_id> --id <flashcards_artifact_id> --format json --output ".../notebooklm/artifacts/flashcards.json"`
+- [ ] `nlm download flashcards <notebook_id> --id <flashcards_artifact_id> --format markdown --output ".../notebooklm/artifacts/flashcards.md"`
+- [ ] `nlm download flashcards <notebook_id> --id <flashcards_artifact_id> --format html --output ".../notebooklm/artifacts/flashcards.html"`
+- [ ] `nlm download mind-map <notebook_id> --id <mindmap_artifact_id> --output ".../notebooklm/artifacts/mindmap.json"`
+- [ ] 更新 `source.yaml` 中 `notebooklm.artifacts.report/quiz/flashcards/mindmap`
+
+Audio Overview：
 
 - [ ] `nlm audio create --profile learning <notebook_id> --format deep_dive --length default --source-ids <selected_source_ids> --confirm`
 
-状态与下载：
+状态与分享：
 
-- [ ] `nlm studio status <notebook_id> --json`
+- [ ] `nlm studio status --profile learning <notebook_id> --json`
+- [ ] `npm run share:artifacts -- "vault/sessions/YYYY/MM/<slug>"`
 - [ ] `notebooklm/artifacts/artifact-status.json`
-- [ ] `notebooklm/artifacts/audio.m4a`
+- [ ] `notebooklm.artifacts.audio.share_url` 或 pending/failed 状态
+- [ ] `completed_audio_artifacts`
+- [ ] `notebooklm/artifacts/audio.m4a`（completed 后必须下载；媒体文件不进 Git）
 
 ## Topics
 

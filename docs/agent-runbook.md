@@ -35,7 +35,7 @@
    ```bash
    nlm --version
    nlm login --check
-   nlm notebook list
+   nlm notebook list --profile learning --json
    ```
 3. MVP 使用 `nlm` CLI-first。MCP tools 可用时可辅助，但第一验收以 CLI 路径为准。
 4. 若未认证，提示运行：
@@ -63,9 +63,10 @@
 - 默认通过 `nlm` CLI 创建 NotebookLM notebook。
 - 默认将 URL 添加为 source。
 - 默认在主 source ready 后先抽取 Web Fast Research queries，再导入筛选后的相关信源。
-- 默认只生成 NotebookLM Audio Overview，并把 NotebookLM notebook 设为“知道链接的任何人可访问”以保存可播放 artifact 链接；本地 `audio.m4a` 只作为按需缓存，不阻断收尾。不默认生成 video、report、quiz、flashcards、mind map。
+- 默认生成并落盘完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 必须在本轮 session 内下载到 `notebooklm/artifacts/`；Audio Overview 必须发起并检查状态，但可在未完成时先记录 pending，后续 session 顺手补查并下载。
+- 若用户说“不要视频 / 只要音频”，只关闭 Video Overview；仍必须生成并落盘 Study Guide/report、quiz、flashcards、mind map。
 - 默认只生成本地沉淀，不生成发布草稿。
-- 默认不删除 notebook/source/artifact、不邀请协作者、不发布社媒；唯一例外是同一次运行中由失败 add-source 尝试留下、且 fallback 成功后可明确识别为非 primary 的 source 残留，此类残留视为已预授权自动清理。NotebookLM notebook link access 默认公开，用于让 artifact 播放链接可访问。
+- 默认不删除 notebook/source/artifact、不邀请协作者、不发布社媒；唯一例外是同一次运行中由失败 add-source 尝试留下、且 fallback 成功后可明确识别为非 primary 的 source 残留，此类残留视为已预授权自动清理。NotebookLM notebook link access 只在 audio completed 后默认公开，用于让 artifact 播放链接可访问。
 - 默认一条主 source 一个 Notebook；Fast Research 增补来源保留在同一个 notebook 内。
 - 默认 topic 由 agent 提议并直接写入 approved，处理结束时展示给用户；用户有疑问或觉得不对再修订。
 - 默认 `synthesis.md` 写成知识卡片，不写成普通观看笔记。
@@ -185,9 +186,37 @@ notes/questions.md
 若 `notebooklm/report.md` 或 `notebooklm/topology.md` 已由 agent 改写、结构化整理或补充推断，frontmatter 使用 `origin: notebooklm-with-agent-edit`；只有未改写原始导出才使用 `origin: notebooklm`。
 写入前检查一次 Markdown 标题：阅读型结构标题必须中文化，尤其是 `Source facts`、`NotebookLM synthesis`、`Agent inference`、`Core Report`、`Knowledge Topology`。
 
-### 6. 生成 Audio Overview 并保存可播放链接
+### 6. 生成并落盘 Studio artifacts
 
-默认只生成 Audio Overview，不生成 video。Audio 可基于全部 sources，也可由 agent 根据 source 质量筛选 `primary_source_id + research.selected_source_ids` 后生成。
+默认 artifact 集合：
+
+- Study Guide/report：`notebooklm/artifacts/report-study-guide.md`
+- Quiz：`quiz.json`、`quiz.md`、必要时保留 `quiz.html`
+- Flashcards：`flashcards.json`、`flashcards.md`、必要时保留 `flashcards.html`
+- Mind map：`mindmap.json`
+- Audio Overview：发起生成；completed 后写 share URL 并下载 `audio.m4a`
+
+非音频 artifact 必须在本轮 session 内创建、下载和记录。Audio 可基于全部 sources，也可由 agent 根据 source 质量筛选 `primary_source_id + research.selected_source_ids` 后生成。
+
+```bash
+nlm report create --profile learning <notebook_id> --format "Study Guide" --source-ids <selected_source_ids> --confirm
+nlm quiz create --profile learning <notebook_id> --count 10 --difficulty 3 --source-ids <selected_source_ids> --confirm
+nlm flashcards create --profile learning <notebook_id> --difficulty hard --source-ids <selected_source_ids> --confirm
+nlm mindmap create --profile learning <notebook_id> --title "Mind Map" --source-ids <selected_source_ids> --confirm
+nlm studio status --profile learning <notebook_id> --json
+nlm download report <notebook_id> --id <report_artifact_id> --output "vault/sessions/YYYY/MM/<slug>/notebooklm/artifacts/report-study-guide.md"
+nlm download quiz <notebook_id> --id <quiz_artifact_id> --format json --output "vault/sessions/YYYY/MM/<slug>/notebooklm/artifacts/quiz.json"
+nlm download quiz <notebook_id> --id <quiz_artifact_id> --format markdown --output "vault/sessions/YYYY/MM/<slug>/notebooklm/artifacts/quiz.md"
+nlm download quiz <notebook_id> --id <quiz_artifact_id> --format html --output "vault/sessions/YYYY/MM/<slug>/notebooklm/artifacts/quiz.html"
+nlm download flashcards <notebook_id> --id <flashcards_artifact_id> --format json --output "vault/sessions/YYYY/MM/<slug>/notebooklm/artifacts/flashcards.json"
+nlm download flashcards <notebook_id> --id <flashcards_artifact_id> --format markdown --output "vault/sessions/YYYY/MM/<slug>/notebooklm/artifacts/flashcards.md"
+nlm download flashcards <notebook_id> --id <flashcards_artifact_id> --format html --output "vault/sessions/YYYY/MM/<slug>/notebooklm/artifacts/flashcards.html"
+nlm download mind-map <notebook_id> --id <mindmap_artifact_id> --output "vault/sessions/YYYY/MM/<slug>/notebooklm/artifacts/mindmap.json"
+```
+
+下载后更新 `source.yaml` 中 `notebooklm.artifacts.report`、`quiz`、`flashcards`、`mindmap` 的 artifact id、status、path/files 与 `downloaded_at`，并把完整 studio 状态写到 `notebooklm/artifacts/artifact-status.json`。
+
+随后发起 Audio Overview：
 
 ```bash
 nlm audio create --profile learning <notebook_id> \
@@ -199,7 +228,9 @@ nlm studio status --profile learning <notebook_id> --json
 npm run share:artifacts -- "vault/sessions/YYYY/MM/<slug>"
 ```
 
-`share:artifacts` 会执行 `nlm share public`，读取 sharing/studio 状态，并把 `notebooklm.sharing.public_link` 与 `notebooklm.artifacts.audio.share_url` 写回 `source.yaml`。`notes/process-log.md` 必须记录 create/status/share 命令、audio artifact ID、ready/failed 状态和 share URL。本地 `audio.m4a` 下载只作为 backlog/backfill 或用户明确要求，不阻断当前 session。旧流程的 report、quiz、flashcards、mind map 可按需生成，但不属于默认 Pipeline。
+`share:artifacts` 先读取 studio 状态；只有存在 completed audio 时才执行 `nlm share public`，随后读取 sharing/studio 状态，把 `notebooklm.sharing.public_link`、`notebooklm.artifacts.audio.share_url`、`completed_audio_artifacts` 写回 `source.yaml`，并下载 `notebooklm/artifacts/audio.m4a`。若 audio 仍在生成、失败或不存在，脚本只记录状态、`checked_at` 与 `target_path`，不公开 notebook、不伪造链接、不下载二进制。
+
+批量回填既有 session 时，可先用 subagents 分片只读检查 `nlm studio status --json`，但文件写回应由主线程统一执行，避免多个 agent 同时改同一个 session。completed audio 才运行 `npm run share:artifacts -- <session-dir>`；failed/in_progress/not_found audio 只记录状态。处理新 session 前后若看到旧 session 有 pending audio，也可顺手跑同一检查并补档。
 
 ### 7. 写 synthesis
 
@@ -254,9 +285,10 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 
 - `source.yaml`
 - `notes/process-log.md`
-- `notebooklm.artifacts.audio.share_url`，以及可选的 `notebooklm/artifacts/audio.m4a` 本地缓存
+- `notebooklm/artifacts/` 下的 report、quiz、flashcards、mind map、artifact status；若 audio completed，还要有 `notebooklm.artifacts.audio.share_url` 与 `notebooklm/artifacts/audio.m4a`，未完成则有 pending 状态与 `target_path`
 - `vault/notebooklm/notebooks.yaml`
 - `topics.proposed`、`topics.approved` 与最终回复中的 topic 展示
+- 若改动了 session、topic 或 notebook mapping，运行 `npm run build:data`；若改动 Viewer/projection 行为，再运行 `npm run smoke`。
 
 最终回复必须列出实际创建/更新的文件路径。
 
@@ -273,7 +305,7 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 ## 禁止事项
 
 - 不自动发布。
-- NotebookLM notebook link access 默认公开，用于让 artifact share URL 可播放；这不等同于生成公开草稿、同步公开模板仓或发布社媒。
+- NotebookLM notebook link access 只在 audio completed 后默认公开，用于让 artifact share URL 可播放；这不等同于生成公开草稿、同步公开模板仓或发布社媒。
 - 不删除 notebook/source/artifact；同一次运行中失败 add-source 尝试留下的非 primary source 残留除外，按异常处理规则自动清理。
 - 不把完整 transcript 放进 publish。
 - 不把 agent 推断写成用户观点。

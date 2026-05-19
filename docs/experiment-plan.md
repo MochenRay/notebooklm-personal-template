@@ -11,7 +11,8 @@
   -> NotebookLM 消化内容
   -> 基于主 source 生成 Web Fast Research queries
   -> 选择性导入相关信源
-  -> 自动生成 Audio Overview 并保存可播放分享链接
+  -> 生成并落盘 Study Guide/report、quiz、flashcards、mind map
+  -> 发起 Audio Overview；完成则分享并下载，未完成则记录 pending
   -> 本地 vault 保存过程与结果
   -> Agent 提议 topic 聚合
   -> 默认 approved 并展示给用户
@@ -28,12 +29,13 @@
 - 第一阶段采用 `notebooklm-mcp-cli` 的 `nlm` CLI-first，MCP 可选，暂不引入 `notebooklm-py`。
 - MVP 一条主 source 一个 Notebook；同一 notebook 内可由 Web Fast Research 增补相关信源，跨 session 聚合仍放在本地 `topics/`。
 - 添加主 source 且 ready 后，默认先基于主 source 生成 research queries，再用 Web Fast Research 选择性导入相关信源。
-- 默认自动生成正式 NotebookLM Audio Overview，公开 notebook link access 并保存可播放 artifact share URL；`notebooklm/artifacts/audio.m4a` 只是可选本地缓存。不默认生成 video、report、quiz、flashcards、mind map。
+- 默认生成完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。非音频 artifacts 必须在本轮 session 内下载落盘；Audio Overview 可异步完成。
+- `npm run share:artifacts -- <session-dir>` 是当前音频分享与下载回填脚本：先确认有 `completed` audio，再公开 notebook link access，写回 `share_url`、`completed_audio_artifacts`、sharing 状态、process log，并下载 `notebooklm/artifacts/audio.m4a`；没有 completed audio 时只记录“生成中/未完成”，不公开 notebook、不伪造链接。
 - 默认不生成 `publish/website.md`；发布投影需明确指令，后续可另抽发布 skill。
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
 - 项目采用 private living instance + public template。私有仓包含真实 `vault/`；公开模板仓只包含工具、文档、Viewer 与空 `vault/` 壳。
 - Vault Viewer 面向阅读默认显示中文标题：新入库视频必须在 `source.yaml` 写 `title_zh`，topic `index.md` 一级标题使用中文，英文 slug 只作稳定 id。
-- 先用 runbook 跑通 3 个样本，再决定是否抽成全局 skill。
+- 三样本、skill 化与本地 Vault Viewer MVP 已完成；当前 docs 重点是保持 pipeline、schema、viewer、private/public 边界一致。
 - 远期可探索 `Telegram -> OpenClaw -> NotebookLM Pipeline` 的异步入口，但不进入 MVP。
 
 ## 文档分工
@@ -48,6 +50,7 @@
 | `docs/tool-selection.md` | 我 + agent | 工具取舍 |
 | `docs/publishing-policy.md` | agent | 发布、版权、脱敏边界 |
 | `docs/repository-model.md` | 我 + agent | 私有仓 / 公开仓分工与 merge 规则 |
+| `docs/superpowers/plans/2026-05-16-vault-viewer.md` | agent | Vault Viewer 历史实施计划；已完成，非当前唯一状态页 |
 
 对齐规则：只要 agent-facing 文档改变了项目目标、阶段、流程、工具取舍或输出结构，必须同步更新本文件。
 
@@ -57,9 +60,10 @@
 | --- | --- | --- |
 | 0. 概念收敛 | 明确 truth layer、CLI-first、topic 漂移层、runbook-first | 已完成 |
 | 1. 工具与仓库接入 | 安装并验证 `notebooklm-mcp-cli`、`nlm`、Git 边界、Codex/Gemini 接入 | 已完成：CLI/Codex/Git 已验证，Gemini 按需 |
-| 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 已完成：实跑 4 个旧 artifact 样本；2026-05-18 起默认流程改为 Fast Research + audio-only |
+| 2. 三样本 MVP | 用 3 个 YouTube 验证“URL -> NotebookLM -> 本地知识卡片” | 已完成：实跑 4 个 artifact 样本；2026-05-18 起默认流程加入 source-grounded Web Fast Research，仍要求完整 artifact pack 落盘，Audio Overview 支持异步补档 |
 | 3. Topic 聚合验证 | 验证 agent topic 建议、默认批准展示、跨月聚合是否可用 | 基础路径已通过；topic 论述合并契约已补强 |
 | 4. Skill 化决策 | 判断是否抽成 `notebooklm-pipeline` skill | 已完成：runbook/fallback 已冻结，skill 已安装 |
+| 4.5. Vault Viewer 本地工作台 | 让私有 vault 可本地浏览、检索、查 health | 已完成：Vite/React Viewer、`.viewer-data` 投影、10 sessions / 23 topics / 0 health findings |
 | 5. 发布投影 | 在明确发布指令下，验证个人网站知识区与社媒草稿生成 | 未开始 |
 | 6. OpenClaw / Telegram 入口 | 探索 Telegram 发 YouTube URL 后由 OpenClaw 触发 NotebookLM Pipeline | 未来候选 |
 
@@ -112,7 +116,7 @@
 - 本机命令行可列出 NotebookLM notebooks。
 - Codex 新对话能识别并调用 NotebookLM Pipeline 所需能力。
 - 失败时能明确区分认证问题、CLI 问题、NotebookLM source 问题。
-- Git 中只包含项目文档、模板、脚本和可开源代码，不包含私人学习内容。
+- private living instance 可包含真实 `vault/` digest；public template 只包含项目文档、模板、脚本、Viewer 和空 `vault/` 壳，不包含私人学习内容。
 
 当前验证记录（2026-05-14）：
 
@@ -122,8 +126,15 @@
 - `nlm notebook list` 可列出 notebooks。
 - `nlm setup list` 与 `codex mcp list` 均显示 Codex CLI 已启用 `notebooklm-mcp`。
 - `nlm doctor` 安装与认证通过，但其 AI Tool Config 检查未识别 Codex；以 `nlm setup list`、`codex mcp list` 与本轮 MCP live list 作为 Codex 接入验证。
-- `.gitignore` 已排除私人 vault、raw transcript、媒体 artifact、NotebookLM/browser 凭证与本地运行态。
+- `.gitignore` 已排除 `.viewer-data`、raw transcript、媒体 artifact、NotebookLM/browser 凭证与本地运行态；真实 `vault/` digest 只属于 private living instance，不能同步到 public template。
 - GitHub private repo 已创建为 `MochenRay/notebooklm-personal`，本地 `main` 已推送到 `origin`。
+
+当前 live smoke（2026-05-19）：
+
+- `nlm --version` 返回 `0.6.9`。
+- `nlm login --check` 对 `learning` profile 通过。
+- `nlm notebook list --profile learning --json` 可列出 24 个 NotebookLM notebooks。
+- `npm run build:data` 通过，写出 10 sessions、23 topics、0 health findings。
 
 状态：已完成。Gemini 接入为按需扩展，未纳入第一验收阻塞。
 
@@ -142,7 +153,7 @@
 - `vault/sessions/YYYY/MM/<slug>/source.yaml`
 - `notes/process-log.md`
 - `notebooklm/report.md` 或 `notebooklm/topology.md`
-- `notebooklm/artifacts/` 下的正式 artifact：默认 audio；早期样本保留 report、quiz、flashcards、mind map
+- `notebooklm/artifacts/` 下的正式 artifacts：Study Guide/report、quiz、flashcards、mind map、artifact status，以及 Audio Overview 的 completed 下载或 pending 状态
 - `notes/questions.md`
 - 知识卡片式 `synthesis.md`
 
@@ -190,10 +201,20 @@
 
 2026-05-18 流程改造：
 
-- 默认不再把 report、quiz、flashcards、mind map 作为新 session 的 Studio artifacts。
-- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Audio Overview -> notebook link access 默认公开 -> artifact share URL -> 本地 vault 沉淀。
-- `source.yaml` 新增 `notebooklm.research`，用于记录 seed queries、research tasks、import policy、imported sources 和最终用于 audio 的 selected source ids。
-- 旧样本产物继续兼容，Viewer 对 quiz/flashcards/mind map 的读取保留；audio-only 新 session 不应出现空的练习面板。
+- 默认流程不是删减为单音频流程，而是在原有学习 artifact pack 前增加 source-grounded Web Fast Research。
+- 复盘口径已修正：“不需要视频，只要音频”只表示不生成 Video Overview，不表示把默认流程改成单音频流程。
+- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Study Guide/report、quiz、flashcards、mind map 落盘 -> Audio Overview 发起/检查 -> completed audio 分享并下载，未完成 audio 记录 pending -> 本地 vault 沉淀。
+- `source.yaml` 新增 `notebooklm.research`，用于记录 seed queries、research tasks、import policy、imported sources 和最终用于综合与 artifacts 的 selected source ids。
+- Viewer 对 quiz、flashcards、mind map 的读取继续是默认能力；新 session 不应因为 audio 未完成而缺少练习与 mind map artifacts。
+
+2026-05-19 音频分享与下载回填：
+
+- 新增并加固 `scripts/share-notebook-artifacts.mjs` 与 `npm run share:artifacts -- <session-dir>`。
+- 脚本会先读取 `nlm studio status --json`，只有存在 `completed` audio 时才执行 `nlm share public`，避免把未完成或 failed audio 的 notebook 误公开。
+- 脚本写回 `notebooklm.sharing`、`notebooklm.artifacts.audio.share_url`、`completed_audio_artifacts` 和 `notebooklm/artifacts/artifact-status.json`，下载 `notebooklm/artifacts/audio.m4a`，并向 `notes/process-log.md` 追加审计记录。
+- 若 audio 仍在生成、失败或不存在，脚本只写回 checked 状态和目标路径，不公开 notebook、不伪造链接；后续跑其它 session 时可顺手再次检查并补档。
+- 兼容旧的 array 形态 `artifact-status.json`，写回时统一为带 `sharing` 与 `artifacts` 的对象形态。
+- 已批量检查 10 个既有 session；当前本地可验证结果为 9 个 session 有 completed audio 并写回分享链接。`how-to-completely-reinvent-yourself-6-12-months` 是早期旧 artifact 样本，本地 `artifact-status.json` 仅记录 infographic、flashcards、quiz、report、mind_map 等 completed artifact，未记录 completed audio，因此未写 `share_url`。
 
 ## 阶段 3：Topic 聚合验证
 
@@ -281,6 +302,25 @@
 
 状态：已完成。skill 入口已通过新 YouTube 样本验证。
 
+## 阶段 4.5：Vault Viewer 本地工作台
+
+目标：让私有 vault 不只是一组 Markdown/YAML 文件，而能作为本地只读知识工作台浏览。
+
+当前实现：
+
+- `scripts/build-viewer-data.mjs` 读取 `vault/`，生成 `.viewer-data/sessions.json`、`.viewer-data/topics.json`、`.viewer-data/health.json`。
+- Vite/React app 提供 overview、sessions、session detail、topics、topic detail、health、知识图谱与练习 artifact 阅读。
+- `scripts/smoke-viewer.mjs` 会启动本地 dev server，用 Playwright 检查关键路由、移动端横向溢出、frontmatter 隐藏和截图。
+- `.viewer-data/` 是本地投影，不是事实层；不进入 public template，也不替代 `vault/`。
+
+当前验证记录（2026-05-19）：
+
+- `npm run build:data` 通过：10 sessions、23 topics、0 health findings。
+- `git ls-files` 未包含 `.viewer-data/`、`.m4a`、`raw/` 或 `.DS_Store`。
+- 公开部署仍不是默认动作；若需要上线，应走 sanitized public projection，而不是直接暴露完整 `.viewer-data` 或 `vault/`。
+
+状态：本地 MVP 已完成，后续可继续做 public-safe projection、lazy-loading 或 topic 质量提升。
+
 ## 阶段 5：发布投影
 
 目标：在用户明确要求发布时，把高价值学习结果投影到个人网站或社媒草稿。
@@ -329,7 +369,7 @@ Telegram message with YouTube URL
 
 - 不进入第一阶段 MVP。
 - 不阻塞三样本验证、topic 聚合与 skill 化决策。
-- 不自动发布网站/社媒、不删除远端或本地内容；NotebookLM notebook link access 默认公开，用于让 artifact share URL 可播放。同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别的非 primary source 残留，仍按 pipeline 规则自动清理。
+- 不自动发布网站/社媒、不删除远端或本地内容；NotebookLM notebook link access 只在 audio completed 后默认公开，用于让 artifact share URL 可播放。同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别的非 primary source 残留，仍按 pipeline 规则自动清理。
 
 状态：未来候选。
 
@@ -337,5 +377,6 @@ Telegram message with YouTube URL
 
 最小下一步不再是继续跑样本。当前收口选择：
 
-1. 样本 4 的历史额外 source `17a040c4-ec4f-4877-85c7-6daef383bd09` 是否现在清理，单独按当前用户指令执行；新的 pipeline 运行已改为 fallback 成功后自动清理本轮失败残留。
-2. 若要继续产品化，再进入阶段 5 发布投影；但发布仍需明确指令，不并入默认 NotebookLM Pipeline。
+1. 继续提升 topic 质量：按 `## 列表摘要`、`## 当前理解` 和 health signal 修 topic 层。
+2. 若要公开展示，先做 sanitized public projection，不直接部署私有 `.viewer-data` 或 `vault/`。
+3. 若要异步入口，再冻结 Telegram/OpenClaw 权限、幂等、失败回报与隐私合同。

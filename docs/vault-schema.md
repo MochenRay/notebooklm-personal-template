@@ -34,7 +34,15 @@ vault/
             topology.md
             artifacts/
               artifact-status.json
-              audio.m4a   # optional local cache
+              report-study-guide.md
+              quiz.json
+              quiz.md
+              quiz.html
+              flashcards.json
+              flashcards.md
+              flashcards.html
+              mindmap.json
+              audio.m4a   # completed 后下载；媒体文件不进 Git
           notes/
             process-log.md
             questions.md
@@ -110,6 +118,44 @@ notebooklm:
   created_by: nlm
   profile: learning
   artifacts:
+    report:
+      id: ""
+      type: report
+      status: completed
+      format: Study Guide
+      path: notebooklm/artifacts/report-study-guide.md
+      downloaded: true
+      downloaded_at: ""
+    quiz:
+      id: ""
+      type: quiz
+      status: completed
+      count: 10
+      difficulty: 3
+      files:
+        json: notebooklm/artifacts/quiz.json
+        markdown: notebooklm/artifacts/quiz.md
+        html: notebooklm/artifacts/quiz.html
+      downloaded: true
+      downloaded_at: ""
+    flashcards:
+      id: ""
+      type: flashcards
+      status: completed
+      difficulty: hard
+      files:
+        json: notebooklm/artifacts/flashcards.json
+        markdown: notebooklm/artifacts/flashcards.md
+        html: notebooklm/artifacts/flashcards.html
+      downloaded: true
+      downloaded_at: ""
+    mindmap:
+      id: ""
+      type: mind_map
+      status: completed
+      path: notebooklm/artifacts/mindmap.json
+      downloaded: true
+      downloaded_at: ""
     audio:
       id: ""
       status: pending
@@ -118,8 +164,19 @@ notebooklm:
       source_ids: []
       share_url: ""
       public_access_required: true
+      completed_audio_artifacts:
+        - id: ""
+          status: completed
+          share_url: ""
       downloaded: false
       target_path: notebooklm/artifacts/audio.m4a
+      checked_at: ""
+  sharing:
+    access: ""
+    is_public: false
+    public_link: ""
+    artifact_link_policy: default_public
+    updated_at: ""
 
 topics:
   proposed:
@@ -154,7 +211,7 @@ status:
 
 ## Git 与开源边界
 
-本项目准备 Git 化和开源。项目文档、模板、脚本、示例 schema 可进 Git；私人 truth vault 与版权/隐私敏感材料默认不进 Git。
+本项目采用 private living instance + public template。项目文档、模板、脚本、Viewer 和示例 schema 可进入两端；真实 `vault/` digest 只属于 private living instance，不进入 public template。
 
 推荐边界：
 
@@ -164,11 +221,28 @@ notebooklm-personal/
   docs/                     # 可进 Git
   templates/                # 可进 Git
   scripts/                  # 可进 Git
+  src/                      # 可进 Git
   examples/                 # 只放脱敏样例
-  vault/                    # 私人 truth vault，默认 gitignore
+  vault/                    # private living instance 可保存真实 digest；public template 只保留空壳
 ```
 
 若未来需要公开示例，使用 `examples/` 放脱敏小样，不直接公开真实 `vault/`。
+
+## `.viewer-data/`
+
+`.viewer-data/` 是由 `scripts/build-viewer-data.mjs` 从 `vault/` 生成的本地投影，供 Vite/React Vault Viewer 读取。
+
+当前生成文件：
+
+- `.viewer-data/sessions.json`
+- `.viewer-data/topics.json`
+- `.viewer-data/health.json`
+
+边界：
+
+- 它不是事实层；事实层仍是 `vault/sessions/`、`vault/topics/` 与 `vault/notebooklm/notebooks.yaml`。
+- 它可包含真实 session 摘要、topic 摘要、health finding、NotebookLM artifact metadata，因此不进入 Git，不同步到 public template。
+- 修改 `source.yaml`、topic index 或 notebooks mapping 后，运行 `npm run build:data` 刷新投影；若 projection contract 或 Viewer UI 改变，再运行 `npm run smoke`。
 
 ## `raw/`
 
@@ -189,7 +263,15 @@ notebooklm-personal/
 - `report.md`
 - `topology.md`
 - `artifacts/artifact-status.json`
-- `artifacts/audio.m4a`（可选本地缓存）
+- `artifacts/report-study-guide.md`
+- `artifacts/quiz.json`
+- `artifacts/quiz.md`
+- `artifacts/quiz.html`
+- `artifacts/flashcards.json`
+- `artifacts/flashcards.md`
+- `artifacts/flashcards.html`
+- `artifacts/mindmap.json`
+- `artifacts/audio.m4a`（audio completed 后下载；媒体文件不进 Git）
 - `slides.pdf`
 - `slides.pptx`
 
@@ -230,13 +312,21 @@ based_on:
 
 ### `notebooklm/artifacts/`
 
-`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifacts 的状态快照；媒体二进制只作为按需缓存。当前默认只生成：
+`notebooklm/artifacts/` 保存正式 NotebookLM Studio artifacts 的本地副本和状态快照。当前默认 artifacts 是：
 
-- audio：`nlm audio create --profile learning <notebook_id> --format deep_dive --length default --source-ids <selected_source_ids> --confirm`，随后通过 `npm run share:artifacts -- <session-dir>` 公开 notebook link access 并写入 `notebooklm.artifacts.audio.share_url`。`audio.m4a` 是可选本地缓存，不是默认闭环要求。
+- Study Guide/report：`report-study-guide.md`
+- Quiz：`quiz.json`、`quiz.md`、`quiz.html`
+- Flashcards：`flashcards.json`、`flashcards.md`、`flashcards.html`
+- Mind map：`mindmap.json`
+- Audio Overview：`audio.m4a` 在远端 completed 后下载；未完成时先记录 `status`、`checked_at` 与 `target_path`
 
-`artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、share_url、generated_at、checked_at、downloaded_at。若某项失败，保留失败状态与错误摘要。
+前四类 artifacts 必须在本轮 session 内生成并下载落盘。Audio Overview 也必须发起，但可异步完成：如果 `nlm studio status` 仍显示 `in_progress`、`failed` 或没有 audio artifact，只记录状态，不公开 notebook、不伪造链接；后续 session 可再次运行 `npm run share:artifacts -- <session-dir>` 补查，完成后公开 notebook link access、写入 `notebooklm.artifacts.audio.share_url` 并下载 `audio.m4a`。
 
-旧 session 或显式请求仍可保留 report、quiz、flashcards、mind map、slides 等 artifacts；Viewer 和 health check 应兼容这些历史产物，但它们不再属于默认 Pipeline。
+`artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、share_url、generated_at、checked_at、downloaded_at 和 sharing 状态。若某项失败，保留失败状态与错误摘要。
+
+`completed_audio_artifacts` 用于记录同一 notebook 下所有已完成的 audio artifacts。`share_url` 是当前 session 默认展示/播放用的主链接；若未来需要切换到另一个完成音频，可以只改主 `id` 与 `share_url`，保留列表用于追溯。
+
+video、slides、infographic 等仍为显式请求或后续扩展。Viewer 和 health check 必须继续兼容既有 session 中不同时间产生的 artifact 形态。
 
 ### `notebooklm.research`
 
@@ -247,7 +337,7 @@ based_on:
 - `strategy`：默认 `source-grounded-fast-web`。
 - `seed_queries`：由 NotebookLM 基于 `primary_source_id` 生成的 3-5 个英文 query。
 - `tasks`：每次 `nlm research start/status/import` 的记录，含 query、task id、mode、source、status、import policy、imported indices 与 imported source ids。
-- `selected_source_ids`：最终用于综合与 audio 的 source id 清单，通常包含 `primary_source_id` 与筛选后的 research source ids。
+- `selected_source_ids`：最终用于综合、正式 artifact pack 与 audio 的 source id 清单，通常包含 `primary_source_id` 与筛选后的 research source ids。
 - `selection_note`：为什么选择这些 source，及是否跳过低质/重复候选。
 
 若 source 添加过程中出现失败后远端残留，fallback 成功后应自动删除可明确识别的失败残留 source。`source_ids` 保留清理后的远端实际 source 清单，`primary_source_id` 指向后续 query 与 artifacts 使用的 ready source，`source_note` 说明失败命令、fallback、被自动删除的 failed source id、删除命令与删除后验证结果。结构化字段写入 `cleanup.auto_deleted_failed_source_ids`；无法自动清理时写入 `cleanup.unresolved_source_ids` 与 `cleanup.cleanup_note`，并说明未自动删除原因。只有无法确认身份、不是本轮失败尝试产生、或可能被用户/其它流程使用的 source 才保留为异常。删除其它 source/notebook 仍是不可逆操作，必须等用户明确确认。

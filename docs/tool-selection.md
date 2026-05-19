@@ -4,9 +4,11 @@
 
 MVP 走 `notebooklm-mcp-cli` 的 `nlm` CLI-first 路线。原因是本项目的核心体验是 AI vibecoding：用户在 Codex/Gemini/Claude 新对话里给 YouTube URL，agent 通过 CLI 调 NotebookLM 完成消化与本地沉淀。
 
-MCP server 可配置、可辅助，但不作为第一验收标准。第一阶段先证明 CLI 路径稳定。
+MCP server 可配置、可辅助，但不作为第一验收标准。第一阶段已证明 CLI 路径稳定；后续仍以 live smoke 验证认证是否过期。
 
-当前默认流程已把 Web Fast Research 与 Audio Overview 纳入 CLI-first 主路径：添加主 source 且 ready 后，先基于主 source 生成 research queries，再用 `nlm research start --source web --mode fast` 发现并选择性导入相关来源，最后生成 Audio Overview、公开 notebook link access，并保存可播放 artifact share URL。video、report、quiz、flashcards、mind map 不再默认生成。
+当前默认流程已把 Web Fast Research 与完整 Studio artifact pack 纳入 CLI-first 主路径：添加主 source 且 ready 后，先基于主 source 生成 research queries，再用 `nlm research start --source web --mode fast` 发现并选择性导入相关来源，随后生成并下载 Study Guide/report、quiz、flashcards、mind map，并发起 Audio Overview。Audio completed 后公开 notebook link access、保存可播放 artifact share URL 并下载 `audio.m4a`；未完成时只记录 pending 状态。video、slides、infographic 不默认生成。
+
+项目脚本层目前只新增了音频分享与下载回填脚本：`npm run share:artifacts -- <session-dir>`。Web Fast Research 与非音频 artifacts 的生成/下载不是单独脚本，而是 pipeline/runbook/skill 的默认执行步骤，底层仍通过 `nlm research start/status/import`、`nlm report/quiz/flashcards/mindmap create` 与 `nlm download ...` 完成。
 
 `notebooklm-py` 暂不作为第一阶段必需工具。它更适合后续稳定导出、Python pipeline、批量处理与网站 build。
 
@@ -25,6 +27,7 @@ MCP server 可配置、可辅助，但不作为第一验收标准。第一阶段
 - 生成 studio artifact
 - download artifact
 - research、batch、cross-notebook、pipeline、tag
+- share public/private/status，用于生成可访问的 NotebookLM artifact 链接
 - 配置 Codex、Gemini、Claude Code、Cursor 等 AI 工具
 
 适合 MVP：
@@ -38,8 +41,9 @@ MCP server 可配置、可辅助，但不作为第一验收标准。第一阶段
 
 - 使用非官方内部 API，Google 可随时变更。
 - 需要管理 `nlm login`、profile、cookie 生命周期。
-- 删除、邀请协作者等动作必须人工确认；NotebookLM notebook link access 是 Pipeline 默认公开项，用于让 artifact share URL 可播放。同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别为非 primary 的 source 残留，是 NotebookLM Pipeline 的预授权自动清理例外。
+- 删除、邀请协作者等动作必须人工确认；NotebookLM notebook link access 只在 audio completed 后由 Pipeline 默认公开，用于让 artifact share URL 可播放。同一次运行中失败 add-source 尝试留下、fallback 成功后可明确识别为非 primary 的 source 残留，是 NotebookLM Pipeline 的预授权自动清理例外。
 - 长任务需等待与轮询，不可假定即时完成。
+- `share:artifacts` 必须先确认 audio completed，再公开 notebook 并下载 `audio.m4a`；失败或未完成 audio 不公开、不写播放链接，只写 pending/failed 状态。
 
 ## `teng-lin/notebooklm-py`
 
@@ -48,6 +52,7 @@ MCP server 可配置、可辅助，但不作为第一验收标准。第一阶段
 适合第二阶段：
 
 - 批量下载 audio、report、quiz、flashcards、mind map、slides、video。
+- 更复杂的批量导出和本地媒体归档；当前 artifact pack 与音频补档已由 `nlm` + `share:artifacts` 覆盖，不需要为此提前引入。
 - 写 Python pipeline。
 - 为个人网站生成稳定 Markdown/JSON 数据。
 - 定期刷新多个 notebooks。
@@ -80,16 +85,15 @@ MVP 不默认引入。
 
 它接近本项目想法：source -> NotebookLM -> report/study pack/mind map/handoff bundle。但当前不作为主依赖，先观察成熟度与维护稳定性。
 
-## 本地检索与知识图谱
+## 本地 Viewer、检索与知识图谱
 
-第三阶段再考虑：
+当前已实现：
 
-- Markdown/Obsidian vault
-- BM25/vector/hybrid search
-- local vault MCP
-- topic topology generator
+- `scripts/build-viewer-data.mjs`：从私有 `vault/` 生成 `.viewer-data/sessions.json`、`.viewer-data/topics.json`、`.viewer-data/health.json`。
+- Vite/React Viewer：overview、sessions、session detail、topics、topic detail、health、知识图谱和 practice artifact 阅读。
+- `scripts/smoke-viewer.mjs`：用 Playwright 做本地浏览器 smoke。
 
-此层用于让 agent 跨 session 找到旧知识，不是 MVP 前置条件。
+后续再考虑 BM25/vector/hybrid search、local vault MCP 或更正式的 topic topology generator。`.viewer-data` 是本地投影，不是事实层，也不是 public template 内容。
 
 ## Skill 策略
 

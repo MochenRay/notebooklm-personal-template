@@ -2,7 +2,7 @@
 
 This directory is the local truth layer for NotebookLM learning sessions.
 
-The open-source template keeps `vault/` empty by default. A private living
+The public template keeps `vault/` empty by default. The private living
 instance can add real digest content under:
 
 ```text
@@ -25,4 +25,6 @@ When a new session creates or updates a topic, update this summary together
 with the topic body.
 
 Do not commit private transcripts, credentials, cookies, or raw media to a
-public repository.
+public repository. NotebookLM notebook ids, source ids, artifact share URLs,
+`.viewer-data/`, and local health findings also stay out of the public template
+unless a separate sanitized projection is explicitly produced.
