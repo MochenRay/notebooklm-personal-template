@@ -158,7 +158,7 @@ notebooklm:
       downloaded_at: ""
     audio:
       id: ""
-      status: requested
+      status: requested # 或 rate_limited_pending_retry：audio create 未返回 artifact id
       format: deep_dive
       length: default
       language: zh-CN
@@ -317,9 +317,9 @@ based_on:
 - Quiz：`quiz.json`、`quiz.md`、`quiz.html`
 - Flashcards：`flashcards.json`、`flashcards.md`、`flashcards.html`
 - Mind map：`mindmap.json`
-- Audio Overview：当前 session 只发起中文音频生成；记录 `status`、`language: zh-CN`、`source_ids`、`created_at` 与 `checked_at`。远端 completed 后由后续补档写入 `share_url`，不下载本地音频二进制。
+- Audio Overview：当前 session 只尝试发起一次中文音频生成。若创建成功并返回 artifact id，记录 `status`、`id`、`language: zh-CN`、`source_ids`、`created_at` 与 `checked_at`，远端 completed 后由后续补档写入 `share_url`，不下载本地音频二进制。若创建受阻或 rate limited，记录 `status: rate_limited_pending_retry` 或对应 create-blocked 状态，并由 health check 报 `audio_create_blocked`。
 
-前四类 artifacts 必须在本轮 session 内生成并下载落盘。Audio Overview 也必须发起，但当前 session 不等待完成、不公开 notebook、不伪造链接。后续 session 开始时运行 `npm run audio:backfill -- --exclude <current-session-dir>`，只对旧 pending audio 做补查；完成后公开 notebook link access 并写入 `notebooklm.artifacts.audio.share_url`。
+前四类 artifacts 必须在本轮 session 内生成并下载落盘。Audio Overview 当前 session 只尝试发起一次，但当前 session 不等待完成、不公开 notebook、不伪造链接。若 audio create 成功返回 artifact id，写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`；后续 session 开始时运行 `npm run audio:backfill -- --exclude <current-session-dir>`，只对旧 pending audio 做补查，完成后公开 notebook link access 并写入 `notebooklm.artifacts.audio.share_url`。若 audio create 一次受阻或 rate limited，写 create-blocked 状态，不写 audio-index，并由 `npm run build:data` 报 `audio_create_blocked` health finding；同一轮不要反复重试。
 
 `artifact-status.json` 建议保存 `nlm studio status <notebook_id> --json` 的结果或其精简版，至少包含 artifact id、type、status、share_url、generated_at、checked_at 和 sharing 状态。若某项失败，保留失败状态与错误摘要。
 
@@ -327,7 +327,7 @@ based_on:
 
 ### `vault/notebooklm/audio-index.yaml`
 
-`audio-index.yaml` 是音频补档队列，不是 session 最终事实层。`source.yaml` 仍是单条 session truth；index 只帮助下一次运行快速找到旧 pending audio。
+`audio-index.yaml` 是音频补档队列，不是 session 最终事实层。`source.yaml` 仍是单条 session truth；index 只帮助下一次运行快速找到已有 audio artifact id 的旧 pending audio。若 audio create 未返回 artifact id，不写入 index，改由 health check 暴露 create-blocked 状态。
 
 ```yaml
 version: 1

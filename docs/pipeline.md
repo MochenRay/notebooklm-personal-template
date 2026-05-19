@@ -13,7 +13,7 @@ YouTube URL
   -> NotebookLM Web Fast Research 发现并导入相关信源
   -> agent 基于全部 sources 拉回结构化输出
   -> agent 生成并下载 Study Guide/report、quiz、flashcards、mind map
-  -> agent 发起 Audio Overview，只记录 pending 与 audio-index
+  -> agent 尝试发起一次 Audio Overview；成功则记录 pending 与 audio-index，受阻则记 health warning
   -> 本地 notes + synthesis
   -> topic 建议与索引
   -> 默认 approved topics 并展示给用户
@@ -196,7 +196,7 @@ notebooklm/artifacts/
 
 ## 阶段 6：生成并落盘 Studio artifacts
 
-默认 artifact 集合是 Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 是同步闭环要求：本轮 session 结束前应创建、下载到 `notebooklm/artifacts/`，并写入 `source.yaml` 与 `artifact-status.json`。Audio Overview 对当前 session 只发起生成并记录 pending：命令必须显式传 `--language zh-CN`，并写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，不等待 completed、不公开 notebook、不写 share URL。
+默认 artifact 集合是 Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 是同步闭环要求：本轮 session 结束前应创建、下载到 `notebooklm/artifacts/`，并写入 `source.yaml` 与 `artifact-status.json`。Audio Overview 对当前 session 只尝试发起一次：命令必须显式传 `--language zh-CN`。若创建成功并返回 artifact id，写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，记录 pending；若创建受阻、rate limited 或未返回 artifact id，立即写 `rate_limited_pending_retry` / `audio_create_blocked` health warning，不在同一轮反复重试，不写 audio-index，不等待 completed、不公开 notebook、不写 share URL。
 
 若用户说“不要视频 / 只要音频”，只表示跳过 Video Overview；不要把它解释成单音频流程，也不要跳过 Study Guide/report、quiz、flashcards、mind map。
 
@@ -263,7 +263,7 @@ nlm audio create --profile learning <notebook_id> \
 - `vault/notebooklm/audio-index.yaml` 中的补档队列记录。
 - `notes/process-log.md` 中的 create 命令和“不在当前 session 等待音频”的说明。
 
-若要基于全部来源，可不传 `--source-ids`，但默认优先显式传入筛选后的 source ids。`notes/process-log.md` 必须记录 create 命令、source ids、pending 状态和未来补档入口。当前 session 不运行 `nlm share public`，不写 `share_url`，本地不保存音频二进制。
+以上三项只适用于 audio create 成功返回 artifact id 的情况。若 audio create 一次受阻，当前 session 末尾改为记录 `notebooklm.artifacts.audio.status: rate_limited_pending_retry` 或对应 create-blocked 状态、`source_ids`、`checked_at` 与错误摘要；`artifact-status.json` 同步记录；`npm run build:data` 暴露 `audio_create_blocked` health warning；不写 `vault/notebooklm/audio-index.yaml`，因为没有 artifact id 可补档；不在同一轮反复重试。若要基于全部来源，可不传 `--source-ids`，但默认优先显式传入筛选后的 source ids。当前 session 不运行 `nlm share public`，不写 `share_url`，本地不保存音频二进制。
 
 ### 既有 session 音频回填
 

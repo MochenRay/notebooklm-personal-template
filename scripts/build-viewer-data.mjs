@@ -360,6 +360,30 @@ function artifactCoverage(sessionDir, source, findings, sessionId) {
   };
 }
 
+function checkAudioStatus(source, findings, sessionId, sourcePath) {
+  const audio = isPlainObject(source?.notebooklm?.artifacts?.audio) ? source.notebooklm.artifacts.audio : {};
+  const status = typeof audio.status === "string" ? audio.status : "";
+  const id = typeof audio.id === "string" ? audio.id : "";
+  const createBlockedStatuses = new Set([
+    "rate_limited_pending_retry",
+    "rate_limited_retry_pending",
+    "create_failed",
+    "creation_failed",
+    "create_blocked",
+  ]);
+
+  if (createBlockedStatuses.has(status) && !id) {
+    findings.push({
+      severity: "warning",
+      type: "audio_create_blocked",
+      sessionId,
+      path: relativeToRoot(sourcePath),
+      message:
+        "Audio Overview was not created; no audio artifact id exists yet. Do not retry repeatedly in the same run; leave this as a health finding until a later explicit retry.",
+    });
+  }
+}
+
 function readPractice(sessionDir, findings, sessionId) {
   const practice = {};
   for (const [type, schema] of Object.entries(artifactSchemas)) {
@@ -491,6 +515,7 @@ function buildSessions(findings) {
     };
 
     const coverage = artifactCoverage(sessionDir, source, findings, sessionId);
+    checkAudioStatus(source, findings, sessionId, sourcePath);
     const practice = readPractice(sessionDir, findings, sessionId);
 
     sessions.push({

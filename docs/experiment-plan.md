@@ -12,7 +12,7 @@
   -> 基于主 source 生成 Web Fast Research queries
   -> 选择性导入相关信源
   -> 生成并落盘 Study Guide/report、quiz、flashcards、mind map
-  -> 发起 Audio Overview，只记录 pending 与 audio-index
+  -> 尝试发起一次 Audio Overview；成功则记录 pending 与 audio-index，受阻则记 health warning
   -> 本地 vault 保存过程与结果
   -> Agent 提议 topic 聚合
   -> 默认 approved 并展示给用户
@@ -29,8 +29,8 @@
 - 第一阶段采用 `notebooklm-mcp-cli` 的 `nlm` CLI-first，MCP 可选，暂不引入 `notebooklm-py`。
 - MVP 一条主 source 一个 Notebook；同一 notebook 内可由 Web Fast Research 增补相关信源，跨 session 聚合仍放在本地 `topics/`。
 - 添加主 source 且 ready 后，默认先基于主 source 生成 research queries，再用 Web Fast Research 选择性导入相关信源。
-- 默认生成完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。非音频 artifacts 必须在本轮 session 内下载落盘；Audio Overview 当前 session 只发起并记录 pending。
-- `npm run audio:backfill -- --exclude <current-session-dir>` 是音频补档入口：读取 `vault/notebooklm/audio-index.yaml`，只检查旧 pending audio。若远端已有 completed audio，底层 `share:artifacts` 才公开 notebook link access，写回 `share_url`、`completed_audio_artifacts`、sharing 状态和 process log；没有 completed audio 时只记录“生成中/未完成”，不公开 notebook、不伪造链接。
+- 默认生成完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。非音频 artifacts 必须在本轮 session 内下载落盘；Audio Overview 当前 session 只尝试发起一次。若成功返回 artifact id，记录 pending 与 audio-index；若受阻或 rate limited，一次失败即记 `audio_create_blocked` health warning，不反复重试，不写 audio-index。
+- `npm run audio:backfill -- --exclude <current-session-dir>` 是音频补档入口：读取 `vault/notebooklm/audio-index.yaml`，只检查已有 audio artifact id 的旧 pending audio。若远端已有 completed audio，底层 `share:artifacts` 才公开 notebook link access，写回 `share_url`、`completed_audio_artifacts`、sharing 状态和 process log；没有 completed audio 时只记录“生成中/未完成”，不公开 notebook、不伪造链接。若 audio create 受阻且没有 artifact id，则不进入 audio-index，只由 health check 暴露。
 - 默认不生成 `publish/website.md`；发布投影需明确指令，后续可另抽发布 skill。
 - `synthesis.md` 是面向未来复用的知识卡片，不是普通学习笔记。
 - 项目采用 private living instance + public template。私有仓包含真实 `vault/`；公开模板仓只包含工具、文档、Viewer 与空 `vault/` 壳。
@@ -169,22 +169,22 @@
 
 - 样本 1 已完成并补齐最新 schema：`How To Completely Reinvent Yourself In 6-12 Months`（Dan Koe）。
   - Session：`vault/sessions/2026/05/how-to-completely-reinvent-yourself-6-12-months/`
-  - Notebook：`<private-notebook-id-sample-1>`
-  - Source：`<private-source-id-sample-1>`
+  - Notebook：`<private-id>`
+  - Source：`<private-id>`
   - 2026-05-14 已把早期 list-style `artifacts` schema 迁到当前 keyed schema，并补齐 `report-study-guide.md`、`quiz.html`、`flashcards.html`、`mindmap.json`、`artifact-status.json`。
 - 样本 2 已完成：`How To Build A $1M One-Person Business Faster With AI`（Dan Koe）。
   - Session：`vault/sessions/2026/05/how-to-build-a-1m-one-person-business-faster-with-ai/`
-  - Notebook：`<private-notebook-id-sample-2>`
-  - Source：`<private-source-id-sample-2>`
+  - Notebook：`<private-id>`
+  - Source：`<private-id>`
 - 样本 3 已完成：`翁家翌：OpenAI，GPT，强化学习，Infra，后训练，天授，tuixue，开源，CMU，清华｜WhynotTV Podcast #4`。
   - Session：`vault/sessions/2026/05/weng-jiayi-openai-gpt-rl-infra-post-training/`
-  - Notebook：`<private-notebook-id-sample-3>`
-  - Source：`<private-source-id-sample-3>`
+  - Notebook：`<private-id>`
+  - Source：`<private-id>`
 - 样本 4 已完成：`Yao Shunyu: Let Me Go a Little Crazy! Training Models at Anthropic & Gemini, Heroism Is Over`。
   - Session：`vault/sessions/2026/05/yao-shunyu-training-models-anthropic-gemini-heroism-is-over/`
-  - Notebook：`<private-notebook-id-sample-4>`
-  - Primary source：`<private-primary-source-id-sample-4>`
-  - Extra source：`<private-extra-source-id-sample-4>`
+  - Notebook：`<private-id>`
+  - Primary source：`<private-id>`
+  - Extra source：`<private-id>`
 - 4 个样本均已产出 `source.yaml`、`notes/process-log.md`、`notebooklm/report.md`、`notebooklm/topology.md`、`notebooklm/artifacts/`、`notes/questions.md`、`notes/debate.md`、`notes/my-notes.md`、`synthesis.md`。
 - 4 个样本均未生成 `publish/website.md` 或公开投影。
 
@@ -192,9 +192,9 @@
 
 - 最初目标仍是一条 source 一个 notebook。
 - 第一次添加 source 用的是 `nlm source add ... --youtube <url>`。CLI 返回 `Error: Could not add url source.`，按失败处理。
-- 随后用 fallback：`nlm source add ... --url <url>`，成功创建 ready source `<private-primary-source-id-sample-4>`。
-- 后续 report、quiz、flashcards、mind map 都用 `--source-ids <private-primary-source-id-sample-4>` 显式绑定 primary source，所以样本产物有效。
-- 远端检查发现第一次失败的 `--youtube` 尝试仍留下一个 URL 标题的额外 source：`<private-extra-source-id-sample-4>`。这不是本地 schema 错误，而是一次远端半成功残留。
+- 随后用 fallback：`nlm source add ... --url <url>`，成功创建 ready source `<private-id>`。
+- 后续 report、quiz、flashcards、mind map 都用 `--source-ids <private-id>` 显式绑定 primary source，所以样本产物有效。
+- 远端检查发现第一次失败的 `--youtube` 尝试仍留下一个 URL 标题的额外 source：`<private-id>`。这不是本地 schema 错误，而是一次远端半成功残留。
 - 2026-05-14 复盘后修订 runbook：以后同一次运行中若第一次 add-source 失败、fallback 成功，且能明确识别失败尝试留下的非 primary source，agent 应自动删除该残留，不再要求用户确认，也不在最终回复中暴露为待处理事项；其它 source/notebook 删除仍需明确确认。样本 4 的既有历史残留不被本次文档修订自动删除。
 
 状态：已完成。三样本目标已满足，且实跑第 4 个样本暴露并验证了 source add 失败后的 fallback 与记录机制。
@@ -203,7 +203,7 @@
 
 - 默认流程不是删减为单音频流程，而是在原有学习 artifact pack 前增加 source-grounded Web Fast Research。
 - 复盘口径已修正：“不需要视频，只要音频”只表示不生成 Video Overview，不表示把默认流程改成单音频流程。
-- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Study Guide/report、quiz、flashcards、mind map 落盘 -> Audio Overview 发起并记录 pending/audio-index -> 本地 vault 沉淀。下一次新 session 开始前再补查旧 pending audio。
+- 新默认为：主 YouTube source -> 主 source 生成 research queries -> Web Fast Research -> 选择性 import -> 全部 sources 综合 -> Study Guide/report、quiz、flashcards、mind map 落盘 -> Audio Overview 尝试发起一次；成功则记录 pending/audio-index，受阻则写 health warning -> 本地 vault 沉淀。下一次新 session 开始前再补查旧 pending audio。
 - `source.yaml` 新增 `notebooklm.research`，用于记录 seed queries、research tasks、import policy、imported sources 和最终用于综合与 artifacts 的 selected source ids。
 - Viewer 对 quiz、flashcards、mind map 的读取继续是默认能力；新 session 不应因为 audio 未完成而缺少练习与 mind map artifacts。
 
@@ -294,8 +294,8 @@
   - `notebooklm-pipeline` 是本项目学习流水线入口。
 - fresh-session smoke 已通过：
   - Session：`vault/sessions/2026/05/im-begging-you-to-start-writing-essays-even-if-you-hate-writing/`
-  - Notebook：`<private-notebook-id-smoke>`
-  - Source：`<private-source-id-smoke>`
+  - Notebook：`<private-id>`
+  - Source：`<private-id>`
   - 远端 source count 为 1，无 cleanup candidate。
   - report、quiz、flashcards、mind map 均 completed，且本地 artifact 文件存在、非空、JSON/YAML 可解析。
   - 已修正该 session 的 `language: "en"`，并把经 agent 整理的 `report.md` / `topology.md` 标为 `origin: notebooklm-with-agent-edit`。

@@ -63,7 +63,7 @@
 - 默认通过 `nlm` CLI 创建 NotebookLM notebook。
 - 默认将 URL 添加为 source。
 - 默认在主 source ready 后先抽取 Web Fast Research queries，再导入筛选后的相关信源。
-- 默认生成并落盘完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 必须在本轮 session 内下载到 `notebooklm/artifacts/`；Audio Overview 在当前 session 只发起并记录 `requested` / `in_progress`，命令显式传 `--language zh-CN` 生成中文音频，写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，不等待 completed、不公开 notebook、不写 share URL。
+- 默认生成并落盘完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 必须在本轮 session 内下载到 `notebooklm/artifacts/`；Audio Overview 在当前 session 只尝试发起一次，命令显式传 `--language zh-CN` 生成中文音频。若创建成功并返回 artifact id，写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，记录 `requested` / `in_progress`；若创建受阻或 rate limited，一次失败即写 `rate_limited_pending_retry` / `audio_create_blocked` health finding，不反复重试，不写 audio-index，不等待 completed、不公开 notebook、不写 share URL。
 - 若用户说“不要视频 / 只要音频”，只关闭 Video Overview；仍必须生成并落盘 Study Guide/report、quiz、flashcards、mind map。
 - 默认只生成本地沉淀，不生成发布草稿。
 - 默认不删除 notebook/source/artifact、不邀请协作者、不发布社媒；唯一例外是同一次运行中由失败 add-source 尝试留下、且 fallback 成功后可明确识别为非 primary 的 source 残留，此类残留视为已预授权自动清理。NotebookLM notebook link access 只在旧 pending audio 被后续补档确认为 completed 后公开，用于让 artifact 播放链接可访问。
@@ -194,7 +194,7 @@ notes/questions.md
 - Quiz：`quiz.json`、`quiz.md`、必要时保留 `quiz.html`
 - Flashcards：`flashcards.json`、`flashcards.md`、必要时保留 `flashcards.html`
 - Mind map：`mindmap.json`
-- Audio Overview：当前 session 只发起中文音频生成并记录 pending；后续补档完成后只写 share URL，本地不保存音频二进制。
+- Audio Overview：当前 session 只尝试发起一次中文音频生成。成功返回 artifact id 时记录 pending 并进入后续补档；创建受阻时记录 create-blocked health finding，不反复重试。后续补档完成后只写 share URL，本地不保存音频二进制。
 
 非音频 artifact 必须在本轮 session 内创建、下载和记录。Audio 可基于全部 sources，也可由 agent 根据 source 质量筛选 `primary_source_id + research.selected_source_ids` 后生成。
 
@@ -227,7 +227,7 @@ nlm audio create --profile learning <notebook_id> \
   --confirm
 ```
 
-发起后只写 `source.yaml` 的 `notebooklm.artifacts.audio.status`、`language: zh-CN`、`source_ids`、`created_at` / `checked_at`，并把同一条记录追加或更新到 `vault/notebooklm/audio-index.yaml`。不要在当前 session 里跑 `nlm studio status` 等待 completed，不要执行 `nlm share public`，不要写 `share_url`。
+Audio create 只尝试一次。若命令成功返回 audio artifact id，写 `source.yaml` 的 `notebooklm.artifacts.audio.status`、`id`、`language: zh-CN`、`source_ids`、`created_at` / `checked_at`，并把同一条记录追加或更新到 `vault/notebooklm/audio-index.yaml`。若命令返回 rate limit、quota、create failed 或其它未创建 artifact 的错误，写 `status: rate_limited_pending_retry` 或对应 create-blocked 状态，`status.stage: synthesized_audio_create_blocked`，记录到 `notes/process-log.md` 与 `artifact-status.json`；不要在同一轮反复重试，不写 audio-index，因为没有 artifact id 可供 backfill。`npm run build:data` 应把它暴露为 `audio_create_blocked` health warning。不要在当前 session 里跑 `nlm studio status` 等待 completed，不要执行 `nlm share public`，不要写 `share_url`。
 
 处理新 session 开始前，先运行 `npm run audio:backfill -- --exclude <current-session-dir>`。该命令只读取 `vault/notebooklm/audio-index.yaml` 的旧 pending 记录；completed audio 才调用 `npm run share:artifacts -- <session-dir>` 写回 `share_url` 与 sharing metadata，failed/in_progress/not_found 只更新 index 与对应旧 `source.yaml` 状态。当前 session 永远通过 `--exclude` 排除。
 
@@ -284,7 +284,7 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 
 - `source.yaml`
 - `notes/process-log.md`
-- `notebooklm/artifacts/` 下的 report、quiz、flashcards、mind map、artifact status；Audio Overview 当前 session 只需有 pending 状态、`source_ids` 和 audio-index 记录。旧 pending 被补档为 completed 后，只写 `notebooklm.artifacts.audio.share_url` 与 sharing metadata。
+- `notebooklm/artifacts/` 下的 report、quiz、flashcards、mind map、artifact status；Audio Overview 当前 session 若创建成功，只需有 pending 状态、`source_ids` 和 audio-index 记录；若创建受阻，只写 create-blocked 状态并让 health check 报警，不在同一轮反复重试。旧 pending 被补档为 completed 后，只写 `notebooklm.artifacts.audio.share_url` 与 sharing metadata。
 - `vault/notebooklm/notebooks.yaml`
 - `topics.proposed`、`topics.approved` 与最终回复中的 topic 展示
 - 若改动了 session、topic 或 notebook mapping，运行 `npm run build:data`；若改动 Viewer/projection 行为，再运行 `npm run smoke`。
