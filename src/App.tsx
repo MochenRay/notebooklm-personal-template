@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   CircleHelp,
+  ExternalLink,
   FolderOpen,
   GitBranch,
   HeartPulse,
@@ -988,27 +989,29 @@ function AudioStatusPanel({ session }: { session: VaultSession }) {
   const audio = session.notebooklm.audio;
   const label = audioStatusLabel(audio.status, audio.shareUrl);
   const tone = audioStatusTone(audio.status, audio.shareUrl);
-  const meta = [
-    audio.id ? `artifact ${audio.id}` : "",
-    audio.checkedAt ? `检查 ${formatDateTime(audio.checkedAt)}` : "",
-    audio.sourceIds.length ? `${audio.sourceIds.length} 个 source` : "",
-  ].filter(Boolean);
 
   return (
     <section className={`audio-status-panel ${tone}`} aria-label="Audio Overview 状态">
-      <div>
-        <p className="rail-label">Audio Overview</p>
+      <div className="audio-status-copy">
+        <p className="rail-label">音频概要</p>
         <h2>{label}</h2>
-        {meta.length ? <p>{meta.join(" / ")}</p> : null}
+        <p>{audio.shareUrl ? "NotebookLM 已完成音频生成，可跳转收听。" : "等待后续补档生成。"}</p>
       </div>
-      {audio.shareUrl ? (
-        <a className="audio-play-link" href={audio.shareUrl} target="_blank" rel="noreferrer">
-          播放链接
-        </a>
-      ) : (
-        <span className="audio-play-link disabled">等待后续补档</span>
-      )}
+      <AudioOverviewLink audioUrl={audio.shareUrl} />
     </section>
+  );
+}
+
+function AudioOverviewLink({ audioUrl }: { audioUrl: string }) {
+  if (!audioUrl) {
+    return <span className="audio-overview-button disabled">等待补档</span>;
+  }
+
+  return (
+    <a className="audio-overview-button" href={audioUrl} target="_blank" rel="noreferrer" aria-label="在 NotebookLM 收听音频概要">
+      <span>去 NotebookLM 收听</span>
+      <ExternalLink size={16} />
+    </a>
   );
 }
 
@@ -1724,13 +1727,8 @@ function formatMonthDay(date?: string) {
   return date.length >= 10 ? date.slice(5, 10) : date;
 }
 
-function formatDateTime(date?: string) {
-  if (!date) return "";
-  return date.length >= 16 ? date.slice(0, 16).replace("T", " ") : date;
-}
-
 function audioStatusLabel(status: string, shareUrl: string) {
-  if (shareUrl || status === "remote_completed_share_ready") return "可播放链接已就绪";
+  if (shareUrl || status === "remote_completed_share_ready") return "播客已生成";
   if (status === "requested") return "已发起生成";
   if (status === "in_progress" || status === "pending") return "远端生成中";
   if (status === "failed") return "生成失败待复核";
@@ -2060,6 +2058,8 @@ function sessionInsightMarkdown(markdown: string) {
     "source facts",
     "notebooklm 归纳",
     "notebooklm synthesis",
+    "topic 归档",
+    "topic archive",
   ]);
 }
 
