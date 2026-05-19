@@ -104,10 +104,11 @@ async function main() {
   const artifacts = Array.isArray(studioArtifacts) ? studioArtifacts : [];
   const currentAudioId = notebooklm.artifacts?.audio?.id;
   const audioArtifacts = artifacts.filter((artifact) => artifact.type === "audio");
-  const audioArtifact =
-    artifacts.find(
-      (artifact) => artifact.type === "audio" && artifact.id === currentAudioId && artifact.status === "completed",
-    ) ?? artifacts.find((artifact) => artifact.type === "audio" && artifact.status === "completed");
+  const audioArtifact = currentAudioId
+    ? artifacts.find(
+        (artifact) => artifact.type === "audio" && artifact.id === currentAudioId && artifact.status === "completed",
+      )
+    : artifacts.find((artifact) => artifact.type === "audio" && artifact.status === "completed");
   const currentAudioArtifact =
     audioArtifacts.find((artifact) => artifact.id === currentAudioId) ?? audioArtifacts[0];
   const completedAudioArtifacts = artifacts.filter(

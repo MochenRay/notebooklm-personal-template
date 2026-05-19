@@ -104,7 +104,7 @@ raw/
 当前本地可是一份 checkout 挂两个 remotes：
 
 ```text
-/Users/rayli/My Projects/notebooklm-personal
+<local-private-checkout>/notebooklm-personal
   origin          private living instance
   public-template public template
 ```

@@ -161,6 +161,7 @@ notebooklm:
       status: requested
       format: deep_dive
       length: default
+      language: zh-CN
       source_ids: []
       share_url: ""
       public_access_required: true
@@ -316,7 +317,7 @@ based_on:
 - Quiz：`quiz.json`、`quiz.md`、`quiz.html`
 - Flashcards：`flashcards.json`、`flashcards.md`、`flashcards.html`
 - Mind map：`mindmap.json`
-- Audio Overview：当前 session 只发起生成；记录 `status`、`source_ids`、`created_at` 与 `checked_at`。远端 completed 后由后续补档写入 `share_url`，不下载本地音频二进制。
+- Audio Overview：当前 session 只发起中文音频生成；记录 `status`、`language: zh-CN`、`source_ids`、`created_at` 与 `checked_at`。远端 completed 后由后续补档写入 `share_url`，不下载本地音频二进制。
 
 前四类 artifacts 必须在本轮 session 内生成并下载落盘。Audio Overview 也必须发起，但当前 session 不等待完成、不公开 notebook、不伪造链接。后续 session 开始时运行 `npm run audio:backfill -- --exclude <current-session-dir>`，只对旧 pending audio 做补查；完成后公开 notebook link access 并写入 `notebooklm.artifacts.audio.share_url`。
 
@@ -337,6 +338,7 @@ entries:
     notebook_id: ""
     audio_artifact_id: ""
     status: requested
+    language: zh-CN
     share_url: ""
     created_at: ""
     last_checked_at: ""

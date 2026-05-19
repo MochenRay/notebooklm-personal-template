@@ -63,7 +63,7 @@
 - 默认通过 `nlm` CLI 创建 NotebookLM notebook。
 - 默认将 URL 添加为 source。
 - 默认在主 source ready 后先抽取 Web Fast Research queries，再导入筛选后的相关信源。
-- 默认生成并落盘完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 必须在本轮 session 内下载到 `notebooklm/artifacts/`；Audio Overview 在当前 session 只发起并记录 `requested` / `in_progress`，写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，不等待 completed、不公开 notebook、不写 share URL。
+- 默认生成并落盘完整 NotebookLM Studio artifact pack：Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 必须在本轮 session 内下载到 `notebooklm/artifacts/`；Audio Overview 在当前 session 只发起并记录 `requested` / `in_progress`，命令显式传 `--language zh-CN` 生成中文音频，写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，不等待 completed、不公开 notebook、不写 share URL。
 - 若用户说“不要视频 / 只要音频”，只关闭 Video Overview；仍必须生成并落盘 Study Guide/report、quiz、flashcards、mind map。
 - 默认只生成本地沉淀，不生成发布草稿。
 - 默认不删除 notebook/source/artifact、不邀请协作者、不发布社媒；唯一例外是同一次运行中由失败 add-source 尝试留下、且 fallback 成功后可明确识别为非 primary 的 source 残留，此类残留视为已预授权自动清理。NotebookLM notebook link access 只在旧 pending audio 被后续补档确认为 completed 后公开，用于让 artifact 播放链接可访问。
@@ -194,7 +194,7 @@ notes/questions.md
 - Quiz：`quiz.json`、`quiz.md`、必要时保留 `quiz.html`
 - Flashcards：`flashcards.json`、`flashcards.md`、必要时保留 `flashcards.html`
 - Mind map：`mindmap.json`
-- Audio Overview：当前 session 只发起生成并记录 pending；后续补档完成后只写 share URL，本地不保存音频二进制。
+- Audio Overview：当前 session 只发起中文音频生成并记录 pending；后续补档完成后只写 share URL，本地不保存音频二进制。
 
 非音频 artifact 必须在本轮 session 内创建、下载和记录。Audio 可基于全部 sources，也可由 agent 根据 source 质量筛选 `primary_source_id + research.selected_source_ids` 后生成。
 
@@ -222,11 +222,12 @@ nlm download mind-map <notebook_id> --id <mindmap_artifact_id> --output "vault/s
 nlm audio create --profile learning <notebook_id> \
   --format deep_dive \
   --length default \
+  --language zh-CN \
   --source-ids <selected_source_ids> \
   --confirm
 ```
 
-发起后只写 `source.yaml` 的 `notebooklm.artifacts.audio.status`、`source_ids`、`created_at` / `checked_at`，并把同一条记录追加或更新到 `vault/notebooklm/audio-index.yaml`。不要在当前 session 里跑 `nlm studio status` 等待 completed，不要执行 `nlm share public`，不要写 `share_url`。
+发起后只写 `source.yaml` 的 `notebooklm.artifacts.audio.status`、`language: zh-CN`、`source_ids`、`created_at` / `checked_at`，并把同一条记录追加或更新到 `vault/notebooklm/audio-index.yaml`。不要在当前 session 里跑 `nlm studio status` 等待 completed，不要执行 `nlm share public`，不要写 `share_url`。
 
 处理新 session 开始前，先运行 `npm run audio:backfill -- --exclude <current-session-dir>`。该命令只读取 `vault/notebooklm/audio-index.yaml` 的旧 pending 记录；completed audio 才调用 `npm run share:artifacts -- <session-dir>` 写回 `share_url` 与 sharing metadata，failed/in_progress/not_found 只更新 index 与对应旧 `source.yaml` 状态。当前 session 永远通过 `--exclude` 排除。
 

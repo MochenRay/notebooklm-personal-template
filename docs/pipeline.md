@@ -196,7 +196,7 @@ notebooklm/artifacts/
 
 ## 阶段 6：生成并落盘 Studio artifacts
 
-默认 artifact 集合是 Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 是同步闭环要求：本轮 session 结束前应创建、下载到 `notebooklm/artifacts/`，并写入 `source.yaml` 与 `artifact-status.json`。Audio Overview 对当前 session 只发起生成并记录 pending：写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，不等待 completed、不公开 notebook、不写 share URL。
+默认 artifact 集合是 Study Guide/report、quiz、flashcards、mind map 和 Audio Overview。前四类 artifact 是同步闭环要求：本轮 session 结束前应创建、下载到 `notebooklm/artifacts/`，并写入 `source.yaml` 与 `artifact-status.json`。Audio Overview 对当前 session 只发起生成并记录 pending：命令必须显式传 `--language zh-CN`，并写入 `source.yaml` 与 `vault/notebooklm/audio-index.yaml`，不等待 completed、不公开 notebook、不写 share URL。
 
 若用户说“不要视频 / 只要音频”，只表示跳过 Video Overview；不要把它解释成单音频流程，也不要跳过 Study Guide/report、quiz、flashcards、mind map。
 
@@ -252,13 +252,14 @@ Audio 可基于全部 sources，也可由 agent 根据 source 质量筛选 `rese
 nlm audio create --profile learning <notebook_id> \
   --format deep_dive \
   --length default \
+  --language zh-CN \
   --source-ids <selected_source_ids> \
   --confirm
 ```
 
 当前 session 末尾只记录：
 
-- `source.yaml` 中的 `notebooklm.artifacts.audio.status: requested` 或 `in_progress`、`source_ids`、`created_at`、`checked_at`。
+- `source.yaml` 中的 `notebooklm.artifacts.audio.status: requested` 或 `in_progress`、`language: zh-CN`、`source_ids`、`created_at`、`checked_at`。
 - `vault/notebooklm/audio-index.yaml` 中的补档队列记录。
 - `notes/process-log.md` 中的 create 命令和“不在当前 session 等待音频”的说明。
 

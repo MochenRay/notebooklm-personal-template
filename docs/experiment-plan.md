@@ -169,22 +169,22 @@
 
 - 样本 1 已完成并补齐最新 schema：`How To Completely Reinvent Yourself In 6-12 Months`（Dan Koe）。
   - Session：`vault/sessions/2026/05/how-to-completely-reinvent-yourself-6-12-months/`
-  - Notebook：`dcada0f3-6416-42b7-9281-eda9158e15ef`
-  - Source：`86fdbc4c-feca-4785-9660-f2ba8dcb7778`
+  - Notebook：`<private-notebook-id-sample-1>`
+  - Source：`<private-source-id-sample-1>`
   - 2026-05-14 已把早期 list-style `artifacts` schema 迁到当前 keyed schema，并补齐 `report-study-guide.md`、`quiz.html`、`flashcards.html`、`mindmap.json`、`artifact-status.json`。
 - 样本 2 已完成：`How To Build A $1M One-Person Business Faster With AI`（Dan Koe）。
   - Session：`vault/sessions/2026/05/how-to-build-a-1m-one-person-business-faster-with-ai/`
-  - Notebook：`f7aca118-781c-46e8-8487-1097e7bb11e3`
-  - Source：`968e03e4-23dc-4c2f-9de5-c300f098321a`
+  - Notebook：`<private-notebook-id-sample-2>`
+  - Source：`<private-source-id-sample-2>`
 - 样本 3 已完成：`翁家翌：OpenAI，GPT，强化学习，Infra，后训练，天授，tuixue，开源，CMU，清华｜WhynotTV Podcast #4`。
   - Session：`vault/sessions/2026/05/weng-jiayi-openai-gpt-rl-infra-post-training/`
-  - Notebook：`1d9fc026-0af5-485a-b599-79c3f69dbd34`
-  - Source：`890ddf39-099b-48b6-ac4c-516c4ada9f51`
+  - Notebook：`<private-notebook-id-sample-3>`
+  - Source：`<private-source-id-sample-3>`
 - 样本 4 已完成：`Yao Shunyu: Let Me Go a Little Crazy! Training Models at Anthropic & Gemini, Heroism Is Over`。
   - Session：`vault/sessions/2026/05/yao-shunyu-training-models-anthropic-gemini-heroism-is-over/`
-  - Notebook：`521435c4-4394-4890-9348-5bec06c2098a`
-  - Primary source：`4982e0c5-3010-4195-b908-21b9c7812bd9`
-  - Extra source：`17a040c4-ec4f-4877-85c7-6daef383bd09`
+  - Notebook：`<private-notebook-id-sample-4>`
+  - Primary source：`<private-primary-source-id-sample-4>`
+  - Extra source：`<private-extra-source-id-sample-4>`
 - 4 个样本均已产出 `source.yaml`、`notes/process-log.md`、`notebooklm/report.md`、`notebooklm/topology.md`、`notebooklm/artifacts/`、`notes/questions.md`、`notes/debate.md`、`notes/my-notes.md`、`synthesis.md`。
 - 4 个样本均未生成 `publish/website.md` 或公开投影。
 
@@ -192,9 +192,9 @@
 
 - 最初目标仍是一条 source 一个 notebook。
 - 第一次添加 source 用的是 `nlm source add ... --youtube <url>`。CLI 返回 `Error: Could not add url source.`，按失败处理。
-- 随后用 fallback：`nlm source add ... --url <url>`，成功创建 ready source `4982e0c5-3010-4195-b908-21b9c7812bd9`。
-- 后续 report、quiz、flashcards、mind map 都用 `--source-ids 4982e0c5-3010-4195-b908-21b9c7812bd9` 显式绑定 primary source，所以样本产物有效。
-- 远端检查发现第一次失败的 `--youtube` 尝试仍留下一个 URL 标题的额外 source：`17a040c4-ec4f-4877-85c7-6daef383bd09`。这不是本地 schema 错误，而是一次远端半成功残留。
+- 随后用 fallback：`nlm source add ... --url <url>`，成功创建 ready source `<private-primary-source-id-sample-4>`。
+- 后续 report、quiz、flashcards、mind map 都用 `--source-ids <private-primary-source-id-sample-4>` 显式绑定 primary source，所以样本产物有效。
+- 远端检查发现第一次失败的 `--youtube` 尝试仍留下一个 URL 标题的额外 source：`<private-extra-source-id-sample-4>`。这不是本地 schema 错误，而是一次远端半成功残留。
 - 2026-05-14 复盘后修订 runbook：以后同一次运行中若第一次 add-source 失败、fallback 成功，且能明确识别失败尝试留下的非 primary source，agent 应自动删除该残留，不再要求用户确认，也不在最终回复中暴露为待处理事项；其它 source/notebook 删除仍需明确确认。样本 4 的既有历史残留不被本次文档修订自动删除。
 
 状态：已完成。三样本目标已满足，且实跑第 4 个样本暴露并验证了 source add 失败后的 fallback 与记录机制。
@@ -294,8 +294,8 @@
   - `notebooklm-pipeline` 是本项目学习流水线入口。
 - fresh-session smoke 已通过：
   - Session：`vault/sessions/2026/05/im-begging-you-to-start-writing-essays-even-if-you-hate-writing/`
-  - Notebook：`af467a2e-25fc-4505-9c22-926a046addac`
-  - Source：`e39d8302-9f14-41e9-8a70-0e792907aecf`
+  - Notebook：`<private-notebook-id-smoke>`
+  - Source：`<private-source-id-smoke>`
   - 远端 source count 为 1，无 cleanup candidate。
   - report、quiz、flashcards、mind map 均 completed，且本地 artifact 文件存在、非空、JSON/YAML 可解析。
   - 已修正该 session 的 `language: "en"`，并把经 agent 整理的 `report.md` / `topology.md` 标为 `origin: notebooklm-with-agent-edit`。
