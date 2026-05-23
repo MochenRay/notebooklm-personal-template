@@ -528,7 +528,7 @@ function LearningSessionCards({ sessions: items }: { sessions: VaultSession[] })
         <a className="session-preview-card" href={href(`/sessions/${session.id}`)} key={session.id}>
           <span className="session-preview-meta">
             <small>{formatMonthDay(session.capturedAt)}</small>
-            <small>{session.sourceType}</small>
+            <small>{sourcePlatformLabel(session.url, session.sourceType)}</small>
           </span>
           <strong>{session.title}</strong>
           <p>{session.content.summary || session.whyItMatters}</p>
@@ -851,7 +851,7 @@ function SessionsPage() {
 }
 
 function SessionCard({ session }: { session: VaultSession }) {
-  const sourceMeta = [session.author, sourceDomain(session.url) || session.sourceType].filter(Boolean).join(" / ");
+  const sourceMeta = sessionSourceMeta(session);
 
   return (
     <article className="session-card">
@@ -859,8 +859,9 @@ function SessionCard({ session }: { session: VaultSession }) {
         <a href={href(`/sessions/${session.id}`)} className="session-card-link">
           <div className="card-main-link">
             <h2>{session.title}</h2>
-            <p>
-              <FolderOpen size={15} /> {sourceMeta || session.sourceType}
+            <p className="session-source-meta" title={sourceMeta.full}>
+              <FolderOpen size={15} />
+              <span>{sourceMeta.display}</span>
             </p>
           </div>
           <p className="session-summary">{session.content.summary || session.whyItMatters}</p>
@@ -877,7 +878,7 @@ function SessionCard({ session }: { session: VaultSession }) {
 }
 
 function SessionDetail({ section, session }: { section?: string; session: VaultSession }) {
-  const sourceLabel = sourceDomain(session.url) || session.sourceType || "来源";
+  const sourceLabel = sourcePlatformLabel(session.url, session.sourceType) || "来源";
   const tocGroups = useMemo(() => buildSessionTocGroups(session), [session]);
   const hasPractice = Boolean(session.practice.flashcards || session.practice.quiz);
   const insightMarkdown = useMemo(() => sessionInsightMarkdown(session.content.synthesis), [session.content.synthesis]);
@@ -2698,6 +2699,33 @@ function groupSessionsByDate(items: VaultSession[]) {
 
 function latestFirst(left: VaultSession, right: VaultSession) {
   return right.capturedAt.localeCompare(left.capturedAt) || left.title.localeCompare(right.title);
+}
+
+function sessionSourceMeta(session: VaultSession) {
+  const author = compactAuthorLabel(session.author);
+  const platform = sourcePlatformLabel(session.url, session.sourceType);
+  const display = [author, platform].filter(Boolean).join(" / ");
+  const full = [session.author, platform || sourceDomain(session.url) || session.sourceType].filter(Boolean).join(" / ");
+  return {
+    display: display || session.sourceType || "来源",
+    full: full || display || session.sourceType || "来源",
+  };
+}
+
+function compactAuthorLabel(author: string) {
+  const normalized = author.trim().replace(/\s+/g, " ");
+  if (!normalized) return "";
+
+  const titledShowHost = normalized.match(/^the\s+.+\s+with\s+(.+)$/i);
+  if (titledShowHost?.[1]) return titledShowHost[1].trim();
+
+  return normalized;
+}
+
+function sourcePlatformLabel(url: string, sourceType: string) {
+  const domain = sourceDomain(url);
+  if (domain === "youtube.com" || domain === "youtu.be" || sourceType === "youtube") return "YouTube";
+  return domain || sourceType;
 }
 
 function sourceDomain(url: string) {

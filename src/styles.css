@@ -1290,6 +1290,12 @@ select {
   font-size: 14px;
 }
 
+.session-source-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .session-summary {
   display: -webkit-box;
   margin: 12px 0 12px;
