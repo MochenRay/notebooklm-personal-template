@@ -98,6 +98,12 @@ type TopicRelatedSignal = {
   id: string;
   count: number;
 };
+type TopicDetailSection = {
+  id: string;
+  markdown: string;
+  subtitle: string;
+  title: string;
+};
 type CollapsibleHeadingLevel = 2 | 3 | 4 | 5 | 6;
 type MindmapLayoutNode = {
   childCount: number;
@@ -1205,10 +1211,14 @@ function TopicCard({ topic }: { topic: VaultTopic }) {
 
 function TopicDetail({ topic }: { topic: VaultTopic }) {
   const currentUnderstanding = markdownSection(topic.markdown, "当前理解");
+  const detailSections = topicDetailSections(topic.markdown);
+  const hasStructuredDetail = detailSections.some((section) => section.markdown);
   const pending = markdownSection(topic.markdown, "待合并 / 待拆分");
   const related = relatedTopicsForTopic(topic).slice(0, 8);
   const navItems = [
-    { id: "topic-understanding", label: "当前理解" },
+    ...(hasStructuredDetail
+      ? detailSections.filter((section) => section.markdown).map((section) => ({ id: section.id, label: section.title }))
+      : [{ id: "topic-understanding", label: "当前理解" }]),
     { id: "topic-sessions", label: "关联学习记录" },
     ...(pending ? [{ id: "topic-pending", label: "待合并 / 待拆分" }] : []),
   ];
@@ -1224,10 +1234,16 @@ function TopicDetail({ topic }: { topic: VaultTopic }) {
       </header>
       <div className="topic-detail-layout">
         <main className="topic-reader-column">
-          <section className="topic-panel topic-understanding" id="topic-understanding">
-            <SectionTitle title="当前理解" subtitle="从关联学习记录沉淀出的可复用判断" />
-            <MarkdownView markdown={currentUnderstanding || topic.markdown} />
-          </section>
+          {hasStructuredDetail ? (
+            detailSections
+              .filter((section) => section.markdown)
+              .map((section) => <TopicMarkdownPanel key={section.id} section={section} />)
+          ) : (
+            <section className="topic-panel topic-understanding" id="topic-understanding">
+              <SectionTitle title="当前理解" subtitle="从关联学习记录沉淀出的可复用判断" />
+              <MarkdownView markdown={currentUnderstanding || topic.markdown} />
+            </section>
+          )}
           <section className="topic-panel topic-sessions-panel" id="topic-sessions">
             <SectionTitle title="关联学习记录" subtitle="由每条学习记录的主题标注汇总" />
             <div className="linked-session-list topic-session-list">
@@ -1252,6 +1268,15 @@ function TopicDetail({ topic }: { topic: VaultTopic }) {
         </aside>
       </div>
     </div>
+  );
+}
+
+function TopicMarkdownPanel({ section }: { section: TopicDetailSection }) {
+  return (
+    <section className="topic-panel topic-detail-section" id={section.id}>
+      <SectionTitle title={section.title} subtitle={section.subtitle} />
+      <MarkdownView markdown={section.markdown} />
+    </section>
   );
 }
 
@@ -2734,6 +2759,41 @@ function sourceDomain(url: string) {
   } catch {
     return "";
   }
+}
+
+function topicDetailSections(markdown: string): TopicDetailSection[] {
+  return [
+    {
+      id: "topic-core",
+      title: "核心命题",
+      subtitle: "这个 topic 当前最稳定的总体判断",
+      markdown: markdownSection(markdown, "核心命题"),
+    },
+    {
+      id: "topic-framework",
+      title: "判断框架",
+      subtitle: "把关联学习记录熔炼成可复用的判断维度",
+      markdown: markdownSection(markdown, "判断框架"),
+    },
+    {
+      id: "topic-evidence",
+      title: "证据综合",
+      subtitle: "按证据类型归纳，而不是逐条复述 session",
+      markdown: markdownSection(markdown, "证据综合"),
+    },
+    {
+      id: "topic-boundaries",
+      title: "分歧与边界",
+      subtitle: "适用范围、反例和需要人工判断的位置",
+      markdown: markdownSection(markdown, "分歧与边界"),
+    },
+    {
+      id: "topic-principles",
+      title: "可迁移原则",
+      subtitle: "未来复用这个 topic 时优先检查的规则",
+      markdown: markdownSection(markdown, "可迁移原则"),
+    },
+  ];
 }
 
 function markdownSection(markdown: string, heading: string) {

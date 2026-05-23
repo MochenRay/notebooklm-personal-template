@@ -397,16 +397,17 @@ video、slides、infographic 等仍为显式请求或后续扩展。Viewer 和 h
 
 topic 是漂移层，不是路径真相。agent 建议 topic 后默认写入 approved 并展示给用户；用户有疑问或觉得不对时，再改名、合并、拆分或移除。
 
-`topics/<topic>/index.md` 是跨 session 的语义综合，不是 session changelog。新增 session 命中既有 topic 时，agent 必须重写并整合 `## 当前理解`，让它形成有逻辑关系的完整论述；不要按“某 session 补充了……”逐段追加。
+`topics/<topic>/index.md` 是跨 session 的语义综合，不是 session changelog。新增 session 命中既有 topic 时，agent 必须重写并整合正文结构，让它形成有逻辑关系的完整论述；不要按“某 session 补充了……”逐段追加。
 
 写作规则：
 
 - `## 关联 sessions` 只负责溯源和状态，不承担正文论述。
-- `## 当前理解` 先写 topic 的核心命题，再写共识、分歧、边界和可迁移原则。
+- 正文必须拆成 `## 核心命题`、`## 判断框架`、`## 证据综合`、`## 分歧与边界`、`## 可迁移原则`。
+- `## 核心命题` 写当前最稳定的总体判断；`## 判断框架` 写可复用维度；`## 证据综合` 按证据簇归纳，不逐条复述 session。
 - 多个 session 共同支持同一判断时，合并成一个观点；不要重复列来源。
 - 多个 session 意见不同或重心不同，写成“分歧 / 边界 / 适用场景差异”，不要写成时间顺序记录。
 - 避免把“新 session 补充”“某某访谈进一步强调”“本 session 的核心范式”作为段落组织方式。需要保留来源时，放在 `## 关联 sessions` 或简短证据索引中。
-- 若证据不足以整合，先保留旧论述，并在 `## 待合并 / 待拆分` 标注待整理点；不要把未经消化的新段落塞进 `## 当前理解`。
+- 若证据不足以整合，先保留旧论述，并在 `## 待合并 / 待拆分` 标注待整理点；不要把未经消化的新段落塞进正文。
 
 `topics/<topic>/index.md` 建议结构：
 
@@ -418,13 +419,21 @@ topic 是漂移层，不是路径真相。agent 建议 topic 后默认写入 app
 - 类型：proposed / approved / deprecated
 - 最近整理：
 
-## 关联 sessions
+## 列表摘要
 
-- `vault/sessions/2026/05/youtube-ai-agents-memory/` - approved
+一句话说明这个 topic 的当前判断，用于 topic list。
 
-## 当前理解
+## 核心命题
 
-跨 session 形成的完整论述。优先按概念关系组织，而不是按 session 来源组织。
+跨 session 形成的总体判断。优先回答“这个 topic 现在说明了什么”，不复述来源顺序。
+
+## 判断框架
+
+按可复用维度拆解：判断变量、关键条件、系统边界、行动入口。
+
+## 证据综合
+
+按证据簇归纳不同 session 的共同支撑、互补信息和反例。
 
 ## 分歧与边界
 
@@ -434,8 +443,19 @@ topic 是漂移层，不是路径真相。agent 建议 topic 后默认写入 app
 
 可复用到项目、写作、产品、工程或个人知识系统的操作性原则。
 
+## 关联 sessions
+
+- `vault/sessions/2026/05/youtube-ai-agents-memory/` - approved
+
 ## 待合并 / 待拆分
 ```
+
+health gate 会对 topic index 做三类提醒：
+
+- 缺少结构化详情章节：`topic_detail_needs_structured_sections`。
+- `## 当前理解` 段落数刚好等于关联 session 数：`topic_current_understanding_mirrors_session_count`。
+- `## 当前理解` 呈现来源顺序组织痕迹：`topic_current_understanding_source_ordered`。
+- session 已 approved 该 topic 但 topic index 未列回：`topic_missing_approved_session_reference`。
 
 ## `notebooklm/notebooks.yaml`
 

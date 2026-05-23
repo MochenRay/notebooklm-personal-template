@@ -266,9 +266,11 @@ topics:
 - 先读旧 `index.md` 与本 session 的 `synthesis.md`。
 - `## 关联 sessions` 可追加新 session 路径。
 - `# <topic title>` 一级标题必须是中文展示名；目录名仍保留英文 slug，不因改名搬迁 session。
-- `## 当前理解` 必须重写成跨 session 的完整论述，按概念关系组织共识、分歧、边界和可迁移原则。
+- 正文必须重写为 `## 核心命题`、`## 判断框架`、`## 证据综合`、`## 分歧与边界`、`## 可迁移原则`。
+- `## 核心命题` 回答当前稳定判断；`## 判断框架` 拆可复用维度；`## 证据综合` 按证据簇归纳，不逐条复述 session。
 - 不要用“新 session 补充”“某某 session 进一步强调”“本 session 的核心范式”这类来源顺序作为正文结构。
-- 若新材料只是支持既有判断，合并到原观点；若与既有判断冲突，写入分歧或边界；若暂时无法整合，放入 `## 待合并 / 待拆分`，不要把未经消化的段落直接追加到 `## 当前理解`。
+- 若新材料只是支持既有判断，合并到原观点；若与既有判断冲突，写入分歧或边界；若暂时无法整合，放入 `## 待合并 / 待拆分`，不要把未经消化的段落直接追加到正文。
+- 每个已 approved 该 topic 的 session 都必须出现在 `## 关联 sessions`，否则 build health 会报 `topic_missing_approved_session_reference`。
 
 处理结束前，必须展示已默认批准的 topics。用户若提出疑问、改名、合并、拆分或删除要求，再修订 `source.yaml`、`synthesis.md`、`vault/notebooklm/notebooks.yaml` 与对应 topic 索引。
 

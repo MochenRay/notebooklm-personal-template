@@ -152,6 +152,24 @@ function topicListSummary(markdown, title) {
   return summary;
 }
 
+const REQUIRED_TOPIC_DETAIL_SECTIONS = ["核心命题", "判断框架", "证据综合", "分歧与边界", "可迁移原则"];
+const SOURCE_ORDER_TOPIC_PHRASES = [
+  /新\s*session\s*(补充|进一步|强调|说明)/i,
+  /本\s*session\s*(的)?\s*(核心|补充|说明|强调)/i,
+  /某.*(访谈|样本|session).*(进一步|补充|强调|说明)/i,
+];
+
+function sectionParagraphCount(markdown, heading) {
+  return markdownSection(markdown, heading)
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean).length;
+}
+
+function missingTopicDetailSections(markdown) {
+  return REQUIRED_TOPIC_DETAIL_SECTIONS.filter((heading) => !markdownSection(markdown, heading));
+}
+
 function hasCjk(text) {
   return /[\u3400-\u9fff]/.test(text);
 }
@@ -645,6 +663,36 @@ function buildTopics(sessions, approvedTopicMap, findings) {
       .map((sessionId) => sessionById.get(sessionId))
       .filter(Boolean)
       .sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
+    const missingDetailSections = missingTopicDetailSections(markdown);
+    if (missingDetailSections.length) {
+      findings.push({
+        severity: "warning",
+        type: "topic_detail_needs_structured_sections",
+        topicId,
+        path: relativeToRoot(indexPath),
+        message: `Topic detail should include structured semantic-merge sections: ${missingDetailSections.join(", ")}.`,
+      });
+    }
+    const currentUnderstandingParagraphs = sectionParagraphCount(markdown, "当前理解");
+    if (relatedSessions.length >= 3 && currentUnderstandingParagraphs === relatedSessions.length) {
+      findings.push({
+        severity: "warning",
+        type: "topic_current_understanding_mirrors_session_count",
+        topicId,
+        path: relativeToRoot(indexPath),
+        message: "Current understanding paragraph count matches related session count; check for append-only session-log writing instead of semantic merge.",
+      });
+    }
+    const currentUnderstanding = markdownSection(markdown, "当前理解");
+    if (SOURCE_ORDER_TOPIC_PHRASES.some((pattern) => pattern.test(currentUnderstanding))) {
+      findings.push({
+        severity: "warning",
+        type: "topic_current_understanding_source_ordered",
+        topicId,
+        path: relativeToRoot(indexPath),
+        message: "Current understanding appears organized by source/session order; rewrite as fused topic-level claims, boundaries, and principles.",
+      });
+    }
     const refs = [
       ...new Set(
         markdown.match(/vault\/sessions\/\d{4}\/\d{2}\/[A-Za-z0-9._-]+\/?/g)?.map((ref) =>
@@ -652,6 +700,20 @@ function buildTopics(sessions, approvedTopicMap, findings) {
         ) || [],
       ),
     ];
+    const refSet = new Set(refs);
+
+    for (const session of relatedSessions) {
+      if (!refSet.has(session.path)) {
+        findings.push({
+          severity: "warning",
+          type: "topic_missing_approved_session_reference",
+          topicId,
+          sessionId: session.id,
+          path: relativeToRoot(indexPath),
+          message: `Session approved this topic but the topic index does not list it in ## 关联 sessions: ${session.path}`,
+        });
+      }
+    }
 
     for (const ref of refs) {
       const matched = sessions.find((session) => session.path === ref);
@@ -757,6 +819,10 @@ function buildHealth(findings, sessions, topics) {
       "missing_session_title_zh",
       "missing_topic_title_zh",
       "missing_topic_list_summary",
+      "topic_detail_needs_structured_sections",
+      "topic_current_understanding_mirrors_session_count",
+      "topic_current_understanding_source_ordered",
+      "topic_missing_approved_session_reference",
     ],
     findings,
   };
