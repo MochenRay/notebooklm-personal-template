@@ -2735,12 +2735,40 @@ select {
   }
 
   .audio-status-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: stretch;
-    flex-direction: column;
+    gap: 10px;
+    margin-top: 18px;
+    padding: 13px 14px 13px 16px;
+  }
+
+  .audio-status-copy {
+    display: grid;
+    gap: 2px;
+  }
+
+  .audio-status-panel .rail-label,
+  .audio-status-panel h2,
+  .audio-status-panel p {
+    margin: 0;
+  }
+
+  .audio-status-panel h2 {
+    font-size: 18px;
+    line-height: 1.2;
+  }
+
+  .audio-status-panel p {
+    font-size: 12px;
+    line-height: 1.35;
   }
 
   .audio-overview-button {
-    width: max-content;
+    align-self: center;
+    min-height: 34px;
+    padding: 0 11px;
+    font-size: 13px;
   }
 
   .metric-strip {

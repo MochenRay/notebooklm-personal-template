@@ -147,6 +147,11 @@ function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  useLayoutEffect(() => {
+    if (route.name === "session" && route.section) return;
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [route]);
+
   const activeName = route.name === "session" ? "session" : route.name === "topic" ? "topic" : route.name;
 
   return (
