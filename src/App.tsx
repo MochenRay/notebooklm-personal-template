@@ -11,6 +11,7 @@ import {
   HeartPulse,
   Home,
   Info,
+  Menu,
   Search,
   Sparkles,
   Tag,
@@ -121,6 +122,8 @@ type MindmapLayout = {
 
 const EMPTY_COLLAPSED_IDS = new Set<string>();
 const GRAPH_DETAIL_RELATED_LIMIT = 5;
+const MINDMAP_FIT_MARGIN = 8;
+const MINDMAP_MIN_SCALE = 0.5;
 const MARKDOWN_HEADING_TRANSLATIONS = new Map<string, string>([
   ["agent inference", "Agent 推断"],
   ["approved", "已确认"],
@@ -175,34 +178,65 @@ function Breadcrumb({ current }: { current: string }) {
 }
 
 function Sidebar({ route, currentRoute }: { route: string; currentRoute: Route }) {
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const currentSession = currentRoute.name === "session" ? sessionById.get(currentRoute.id) : undefined;
   const currentTopic = currentRoute.name === "topic" ? topicById.get(currentRoute.id) : undefined;
+  const contextPanel = currentSession ? <SessionContextPanel session={currentSession} /> : currentTopic ? <TopicSidebarPanel topic={currentTopic} /> : null;
+
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [currentRoute]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileNavOpen(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileNavOpen]);
 
   return (
-    <aside className="sidebar" aria-label="Vault navigation">
-      <a className="brand" href={href("/")}>
-        <span className="brand-mark">
-          <img src={brandLogoUrl} alt="" aria-hidden="true" />
-        </span>
-        <span>
-          <strong>{PRODUCT_NAME}</strong>
-          <em>把学习沉淀接成星系</em>
-        </span>
-      </a>
-      <nav className="nav-list">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = item.match.includes(route);
-          return (
-            <a className={active ? "nav-link active" : "nav-link"} href={href(item.href)} key={item.href}>
-              <Icon size={19} strokeWidth={1.8} />
-              <span>{item.label}</span>
-            </a>
-          );
-        })}
-      </nav>
-      {currentSession ? <SessionContextPanel session={currentSession} /> : null}
-      {currentTopic ? <TopicSidebarPanel topic={currentTopic} /> : null}
+    <aside className={mobileNavOpen ? "sidebar mobile-nav-open" : "sidebar"} aria-label="Vault navigation">
+      <div className="sidebar-topbar">
+        <a className="brand" href={href("/")} onClick={() => setMobileNavOpen(false)}>
+          <span className="brand-mark">
+            <img src={brandLogoUrl} alt="" aria-hidden="true" />
+          </span>
+          <span>
+            <strong>{PRODUCT_NAME}</strong>
+            <em>把学习沉淀接成星系</em>
+          </span>
+        </a>
+        <button
+          aria-controls="mobile-sidebar-drawer"
+          aria-expanded={mobileNavOpen}
+          aria-label={mobileNavOpen ? "关闭导航菜单" : "打开导航菜单"}
+          className="mobile-menu-button"
+          onClick={() => setMobileNavOpen((open) => !open)}
+          type="button"
+        >
+          {mobileNavOpen ? <X size={21} strokeWidth={2} /> : <Menu size={21} strokeWidth={2} />}
+        </button>
+      </div>
+      <div className="sidebar-drawer" id="mobile-sidebar-drawer">
+        <nav className="nav-list">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = item.match.includes(route);
+            return (
+              <a className={active ? "nav-link active" : "nav-link"} href={href(item.href)} key={item.href} onClick={() => setMobileNavOpen(false)}>
+                <Icon size={19} strokeWidth={1.8} />
+                <span>{item.label}</span>
+              </a>
+            );
+          })}
+        </nav>
+        {contextPanel}
+      </div>
+      {mobileNavOpen ? <button aria-label="关闭导航菜单背景遮罩" className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)} type="button" /> : null}
     </aside>
   );
 }
@@ -1460,7 +1494,31 @@ function MindmapTree({ node }: { node: MindmapNode }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const pendingScrollAnchorRef = useRef<{ id: string; left: number; top: number } | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [viewportWidth, setViewportWidth] = useState(0);
   const layout = useMemo(() => buildMindmapLayout(node, expandedIds), [expandedIds, node]);
+  const fitWidth = useMemo(() => visibleMindmapTierWidth(layout), [layout]);
+  const scale = viewportWidth > 0 ? Math.min(1, Math.max(MINDMAP_MIN_SCALE, (viewportWidth - MINDMAP_FIT_MARGIN) / fitWidth)) : 1;
+  const scaledLayout = useMemo(() => ({
+    height: Math.ceil(layout.height * scale),
+    width: Math.ceil(layout.width * scale),
+  }), [layout.height, layout.width, scale]);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const updateViewportWidth = () => setViewportWidth(viewport.clientWidth);
+    updateViewportWidth();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateViewportWidth);
+      return () => window.removeEventListener("resize", updateViewportWidth);
+    }
+
+    const observer = new ResizeObserver(updateViewportWidth);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
 
   useLayoutEffect(() => {
     const anchor = pendingScrollAnchorRef.current;
@@ -1502,24 +1560,26 @@ function MindmapTree({ node }: { node: MindmapNode }) {
 
   return (
     <div className="mindmap-viewport" ref={viewportRef} aria-label={`${node.name} 思维导图`}>
-      <div className="mindmap-tree-canvas" style={{ height: layout.height, minWidth: layout.width }}>
-        <svg className="mindmap-svg" height={layout.height} width={layout.width} aria-hidden="true">
-          {layout.links.map((link) => (
-            <path
-              className="mindmap-link"
-              d={mindmapPath(link)}
-              key={`${link.source.id}-${link.target.id}`}
+      <div className="mindmap-tree-canvas" style={{ height: scaledLayout.height, minWidth: scaledLayout.width }}>
+        <div className="mindmap-scale-plane" style={{ height: layout.height, transform: `scale(${scale})`, width: layout.width }}>
+          <svg className="mindmap-svg" height={layout.height} width={layout.width} aria-hidden="true">
+            {layout.links.map((link) => (
+              <path
+                className="mindmap-link"
+                d={mindmapPath(link)}
+                key={`${link.source.id}-${link.target.id}`}
+              />
+            ))}
+          </svg>
+          {layout.nodes.map((layoutNode) => (
+            <MindmapNodeCard
+              expanded={expandedIds.has(layoutNode.id)}
+              key={layoutNode.id}
+              node={layoutNode}
+              onToggle={toggleNode}
             />
           ))}
-        </svg>
-        {layout.nodes.map((layoutNode) => (
-          <MindmapNodeCard
-            expanded={expandedIds.has(layoutNode.id)}
-            key={layoutNode.id}
-            node={layoutNode}
-            onToggle={toggleNode}
-          />
-        ))}
+        </div>
       </div>
     </div>
   );
@@ -1636,6 +1696,13 @@ function buildMindmapLayout(root: MindmapNode, expandedIds: Set<string>): Mindma
     nodes,
     width: Math.max(760, maxX + padding),
   };
+}
+
+function visibleMindmapTierWidth(layout: MindmapLayout) {
+  const visibleTierNodes = layout.nodes.filter((node) => node.depth <= 1);
+  if (!visibleTierNodes.length) return layout.width;
+
+  return Math.max(...visibleTierNodes.map((node) => node.x + node.width)) + MINDMAP_FIT_MARGIN;
 }
 
 function mindmapPath(link: MindmapLayoutLink) {
