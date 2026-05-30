@@ -435,6 +435,35 @@ select {
   display: block;
 }
 
+.graph-fit-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgb(70 77 70 / 0.16);
+  border-radius: 6px;
+  background: rgb(255 255 252 / 0.86);
+  color: #34453b;
+  box-shadow: 0 8px 18px rgb(20 20 20 / 0.08);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.graph-fit-button:hover {
+  border-color: rgb(31 101 68 / 0.26);
+  background: rgb(242 248 240 / 0.96);
+  color: #195c3b;
+}
+
+.graph-fit-button:focus-visible {
+  outline: 2px solid #2f7bf6;
+  outline-offset: 2px;
+}
+
 .graph-legend {
   position: absolute;
   right: 14px;
