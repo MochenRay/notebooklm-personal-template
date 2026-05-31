@@ -602,18 +602,21 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
     () => new Map(visibleGraphData.nodes.map((node) => [String(node.id), node])),
     [visibleGraphData],
   );
-  const hoveredNode = hoveredId ? nodeById.get(hoveredId) ?? null : null;
   const selectedNode = selectedId ? nodeById.get(selectedId) ?? null : null;
   const visibleHoveredNode = hoveredId ? visibleNodeById.get(hoveredId) ?? null : null;
   const visibleSelectedNode = selectedId ? visibleNodeById.get(selectedId) ?? null : null;
-  const graphFocusNode = visibleHoveredNode ?? visibleSelectedNode;
-  const graphFocusState = useMemo(
-    () => buildKnowledgeGraphHoverState(visibleGraphData, graphFocusNode),
-    [graphFocusNode?.id, visibleGraphData],
+  const hoverState = useMemo(
+    () => buildKnowledgeGraphHoverState(visibleGraphData, visibleHoveredNode),
+    [visibleGraphData, visibleHoveredNode?.id],
   );
-  const graphFocusKey = useMemo(
-    () => [...graphFocusState.nodeIds].sort().join("|"),
-    [graphFocusState],
+  const selectedFocusState = useMemo(
+    () => buildKnowledgeGraphHoverState(visibleGraphData, visibleSelectedNode),
+    [visibleGraphData, visibleSelectedNode?.id],
+  );
+  const graphRenderState = selectedFocusState.nodeIds.size ? selectedFocusState : hoverState;
+  const selectedFocusKey = useMemo(
+    () => [...selectedFocusState.nodeIds].sort().join("|"),
+    [selectedFocusState],
   );
   const selectedState = useMemo(
     () => buildKnowledgeGraphHoverState(laidOutGraphData, selectedNode),
@@ -621,8 +624,8 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
   );
 
   useEffect(() => {
-    graphFocusIdsRef.current = graphFocusState.nodeIds;
-  }, [graphFocusKey, graphFocusState.nodeIds]);
+    graphFocusIdsRef.current = selectedFocusState.nodeIds;
+  }, [selectedFocusKey, selectedFocusState.nodeIds]);
 
   useEffect(() => {
     const element = containerRef.current;
@@ -661,13 +664,21 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
 
   useEffect(() => {
     const graph = graphRef.current;
-    if (!graph || !graphFocusState.nodeIds.size) return;
+    if (!graph || !selectedFocusState.nodeIds.size) return;
 
     const timer = window.setTimeout(() => {
-      fitKnowledgeGraphFocusViewport(graph, graphWidth, graphHeight, visibleGraphData.nodes, graphFocusState.nodeIds, 360);
+      fitKnowledgeGraphFocusViewport(graph, graphWidth, graphHeight, visibleGraphData.nodes, selectedFocusState.nodeIds, 360);
     }, 80);
     return () => window.clearTimeout(timer);
-  }, [graphFocusKey, graphHeight, graphWidth, visibleGraphData.nodes]);
+  }, [graphHeight, graphWidth, selectedFocusKey, selectedFocusState.nodeIds, visibleGraphData.nodes]);
+
+  const resetGraphSelection = () => {
+    setSelectedId(null);
+    setHoveredId(null);
+    if (graphRef.current) {
+      fitKnowledgeGraphViewport(graphRef.current, graphWidth, graphHeight, visibleGraphData.nodes, 420);
+    }
+  };
 
   return (
     <section className="graph-section">
@@ -681,19 +692,19 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
               width={graphWidth}
               height={graphHeight}
               backgroundColor="#f7f8f4"
-              nodeCanvasObject={(node, context, globalScale) => drawKnowledgeNode(node, context, globalScale, graphFocusState, hoveredId)}
+              nodeCanvasObject={(node, context, globalScale) => drawKnowledgeNode(node, context, globalScale, graphRenderState, hoveredId, selectedId)}
               nodePointerAreaPaint={paintKnowledgeNodeHitArea}
               nodeLabel={() => ""}
-              linkColor={(link) => graphLinkColor(link, graphFocusState)}
-              linkWidth={(link) => graphLinkWidth(link, graphFocusState)}
+              linkColor={(link) => graphLinkColor(link, graphRenderState)}
+              linkWidth={(link) => graphLinkWidth(link, graphRenderState)}
               linkCurvature={graphLinkCurvature}
-              linkCanvasObjectMode={(link) => graphLinkFlowCanvasMode(link, graphFocusState)}
-              linkCanvasObject={(link, context, globalScale) => drawKnowledgeLinkFlow(link, context, globalScale, graphFocusState)}
+              linkCanvasObjectMode={(link) => graphLinkFlowCanvasMode(link, graphRenderState)}
+              linkCanvasObject={(link, context, globalScale) => drawKnowledgeLinkFlow(link, context, globalScale, graphRenderState)}
               linkHoverPrecision={8}
               d3VelocityDecay={0.28}
               warmupTicks={50}
               cooldownTicks={220}
-              autoPauseRedraw={graphFocusState.nodeIds.size === 0}
+              autoPauseRedraw={graphRenderState.nodeIds.size === 0}
               minZoom={graphMinZoom}
               maxZoom={6}
               onEngineStop={() => {
@@ -708,6 +719,7 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
               onNodeClick={(node) => {
                 setSelectedId(node.id ? String(node.id) : null);
               }}
+              onBackgroundClick={resetGraphSelection}
             />
             <button
               className="graph-fit-button"
@@ -731,7 +743,7 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
               className="graph-inspector-card"
               node={selectedNode}
               related={selectedState.related}
-              onClose={() => setSelectedId(null)}
+              onClose={resetGraphSelection}
             />
           ) : (
             <GraphEmptyInspector />
@@ -2406,8 +2418,8 @@ function layoutKnowledgeGraph(
 
   const wide = width >= height;
   const densityScale = knowledgeGraphDensityScale(nodeCount, graphData.links.length);
-  const xSpan = Math.max(320, width * (wide ? 0.94 : 0.62) * densityScale);
-  const ySpan = Math.max(280, height * (wide ? 0.74 : 0.92) * densityScale);
+  const xSpan = Math.max(360, width * (wide ? 1.18 : 0.72) * densityScale);
+  const ySpan = Math.max(260, height * (wide ? 0.66 : 0.88) * densityScale);
   const degreeById = new Map(graphData.nodes.map((node) => [String(node.id), 0]));
   const linksByTopic = new Map<string, string[]>();
 
@@ -2428,8 +2440,8 @@ function layoutKnowledgeGraph(
   sessionNodes.forEach((node, index) => {
     const progress = sessionNodes.length <= 1 ? 0.5 : index / (sessionNodes.length - 1);
     const wave = Math.sin((index + 1) * 1.9);
-    const x = wave * xSpan * (wide ? 0.18 : 0.28);
-    const y = (progress - 0.5) * ySpan * (wide ? 0.66 : 0.52) + Math.cos((index + 1) * 1.31) * 22;
+    const x = wave * xSpan * (wide ? 0.28 : 0.32);
+    const y = (progress - 0.5) * ySpan * (wide ? 0.6 : 0.5) + Math.cos((index + 1) * 1.31) * 22;
     sessionAnchors.set(String(node.id), { x, y });
   });
 
@@ -2455,9 +2467,9 @@ function layoutKnowledgeGraph(
         { x: 0, y: 0, count: 0 },
       );
       const angle = seed * Math.PI * 2;
-      const orbit = (126 + degree * 18 + hashUnit(`${id}:orbit`) * 74) * (0.94 + densityScale * 0.08);
-      anchorX = (base.count ? base.x / base.count : 0) + Math.cos(angle) * orbit * (wide ? 1.72 : 0.82);
-      anchorY = (base.count ? base.y / base.count : 0) + Math.sin(angle) * orbit * (wide ? 0.88 : 1.42);
+      const orbit = (136 + degree * 20 + hashUnit(`${id}:orbit`) * 86) * (0.94 + densityScale * 0.08);
+      anchorX = (base.count ? base.x / base.count : 0) + Math.cos(angle) * orbit * (wide ? 2.08 : 0.9);
+      anchorY = (base.count ? base.y / base.count : 0) + Math.sin(angle) * orbit * (wide ? 0.76 : 1.36);
     }
 
     anchorX = clamp(anchorX, -xSpan / 2, xSpan / 2);
@@ -2524,6 +2536,7 @@ function configureKnowledgeGraphForces(
   graph.d3Force("topic-session-attract", createTopicSessionAttractionForce(links, width, height, densityScale));
   graph.d3Force("topic-link-repel", createTopicLinkRepulsionForce(links, densityScale));
   graph.d3Force("link-clearance", createLinkClearanceForce(links, densityScale));
+  graph.d3Force("legend-avoidance", createLegendAvoidanceForce(width, height, densityScale));
   graph.d3Force("organic-frame", createOrganicFrameForce(width, height, densityScale));
   graph.d3ReheatSimulation();
 }
@@ -2537,7 +2550,7 @@ function measureKnowledgeGraphBounds(nodes: NodeObject<KnowledgeGraphNode>[]): K
   let maxY = Number.NEGATIVE_INFINITY;
 
   for (const node of nodes) {
-    const radius = knowledgeNodeRadius(node) + 72;
+    const radius = knowledgeNodeRadius(node) + 38;
     const x = node.x ?? 0;
     const y = node.y ?? 0;
     minX = Math.min(minX, x - radius);
@@ -2576,7 +2589,7 @@ function computeKnowledgeGraphFitForBounds(
   nodes: NodeObject<KnowledgeGraphNode>[],
 ): KnowledgeGraphFit {
   const nodeCount = nodes.length;
-  const fitPadding = clamp(30 + Math.sqrt(nodeCount) * 3.2, 42, 72);
+  const fitPadding = clamp(22 + Math.sqrt(nodeCount) * 2.2, 30, 48);
   const availableWidth = Math.max(1, width - fitPadding * 2);
   const availableHeight = Math.max(1, height - fitPadding * 2);
   const fitScale = clamp(Math.min(availableWidth / bounds.width, availableHeight / bounds.height), 0.06, 1.05);
@@ -2585,8 +2598,8 @@ function computeKnowledgeGraphFitForBounds(
     center: bounds.center,
     fitPadding,
     fitScale,
-    initialScale: clamp(fitScale * 0.94, 0.05, 1.05),
-    minZoom: clamp(fitScale * 0.78, 0.04, 0.85),
+    initialScale: clamp(fitScale * 0.98, 0.05, 1.08),
+    minZoom: clamp(fitScale * 0.84, 0.04, 0.9),
   };
 }
 
@@ -2597,7 +2610,7 @@ function measureKnowledgeGraphLiveBounds(
   const bbox = graph.getGraphBbox();
   if (!bbox) return measureKnowledgeGraphBounds(nodes);
 
-  const maxRadius = nodes.reduce((largest, node) => Math.max(largest, knowledgeNodeRadius(node)), 0) + 72;
+  const maxRadius = nodes.reduce((largest, node) => Math.max(largest, knowledgeNodeRadius(node)), 0) + 38;
   const minX = bbox.x[0] - maxRadius;
   const maxX = bbox.x[1] + maxRadius;
   const minY = bbox.y[0] - maxRadius;
@@ -2941,11 +2954,59 @@ function createSoftCollisionForce() {
   return force;
 }
 
+function createLegendAvoidanceForce(width: number, height: number, densityScale: number) {
+  let graphNodes: NodeObject<KnowledgeGraphNode>[] = [];
+  const wide = width >= height;
+  const xLimit = Math.max(190, width * (wide ? 0.54 : 0.4) * densityScale);
+  const yLimit = Math.max(150, height * (wide ? 0.34 : 0.44) * densityScale);
+  const legendWidth = clamp(width * 0.42, 260, 360) * (0.9 + densityScale * 0.1);
+  const legendHeight = 94 * (0.9 + densityScale * 0.1);
+  const clearance = 52 * (0.9 + densityScale * 0.1);
+  const rect = {
+    bottom: yLimit + clearance * 1.2,
+    left: xLimit - legendWidth * 1.45,
+    right: xLimit + clearance * 1.2,
+    top: yLimit - legendHeight * 1.1,
+  };
+
+  const force = (alpha: number) => {
+    for (const node of graphNodes) {
+      const x = node.x ?? 0;
+      const y = node.y ?? 0;
+      const radius = knowledgeNodeRadius(node) + 10;
+      const insideX = x > rect.left - radius && x < rect.right + radius;
+      const insideY = y > rect.top - radius && y < rect.bottom + radius;
+      if (!insideX || !insideY) continue;
+
+      const leftPenetration = x - (rect.left - radius);
+      const topPenetration = y - (rect.top - radius);
+      const pushLeft = leftPenetration <= topPenetration;
+      const penetration = Math.max(1, Math.min(leftPenetration, topPenetration));
+      const push = penetration * alpha * (node.kind === "topic" ? 0.34 : 0.28);
+      const bias = alpha * (node.kind === "topic" ? 12 : 9);
+
+      if (pushLeft) {
+        node.vx = (node.vx ?? 0) - push - bias;
+        node.vy = (node.vy ?? 0) - push * 0.22 - bias * 0.7;
+      } else {
+        node.vx = (node.vx ?? 0) - push * 0.32 - bias;
+        node.vy = (node.vy ?? 0) - push - bias * 0.7;
+      }
+    }
+  };
+
+  force.initialize = (nodes: NodeObject<KnowledgeGraphNode>[]) => {
+    graphNodes = nodes;
+  };
+
+  return force;
+}
+
 function createOrganicFrameForce(width: number, height: number, densityScale: number) {
   let graphNodes: NodeObject<KnowledgeGraphNode>[] = [];
   const wide = width >= height;
-  const xLimit = Math.max(160, width * (wide ? 0.45 : 0.36) * densityScale);
-  const yLimit = Math.max(150, height * (wide ? 0.36 : 0.46) * densityScale);
+  const xLimit = Math.max(190, width * (wide ? 0.54 : 0.4) * densityScale);
+  const yLimit = Math.max(145, height * (wide ? 0.34 : 0.44) * densityScale);
 
   const force = (alpha: number) => {
     for (const node of graphNodes) {
@@ -3163,15 +3224,17 @@ function drawKnowledgeNode(
   globalScale: number,
   hoverState: KnowledgeGraphHoverState,
   hoveredId: string | null,
+  selectedId: string | null,
 ) {
   const radius = knowledgeNodeRadius(node);
   const x = node.x ?? 0;
   const y = node.y ?? 0;
   const isTopic = node.kind === "topic";
+  const nodeId = String(node.id);
   const isHovering = hoverState.nodeIds.size > 0;
-  const isRelated = !isHovering || hoverState.nodeIds.has(String(node.id));
-  const isSelected = isHovering && String(node.id) === [...hoverState.nodeIds][0];
-  const isHovered = hoveredId === String(node.id);
+  const isRelated = !isHovering || hoverState.nodeIds.has(nodeId) || selectedId === nodeId;
+  const isSelected = selectedId === nodeId;
+  const isHovered = hoveredId === nodeId;
 
   context.save();
   context.globalAlpha = isRelated ? 1 : 0.22;
@@ -3180,12 +3243,14 @@ function drawKnowledgeNode(
   context.fillStyle = isTopic ? "#2fac69" : "#8fa0b3";
   context.fill();
 
-  context.lineWidth = isSelected ? 3 : isRelated ? 1.6 : 0.9;
+  context.lineWidth = isSelected ? 3 : isHovered ? 2.2 : isRelated ? 1.6 : 0.9;
   context.strokeStyle = isSelected
     ? "#155b3c"
-    : isTopic
-      ? "rgba(39, 117, 76, 0.62)"
-      : "rgba(77, 91, 107, 0.5)";
+    : isHovered
+      ? "#2d6e52"
+      : isTopic
+        ? "rgba(39, 117, 76, 0.62)"
+        : "rgba(77, 91, 107, 0.5)";
   context.stroke();
 
   if (isSelected) {
