@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build:data": "node scripts/build-viewer-data.mjs",
+    "audit:topics": "node scripts/audit-topic-taxonomy.mjs",
     "audio:backfill": "node scripts/backfill-audio-share-links.mjs",
     "backfill:audio": "node scripts/backfill-audio-share-links.mjs",
     "share:artifacts": "node scripts/share-notebook-artifacts.mjs",

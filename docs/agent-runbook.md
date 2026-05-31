@@ -261,6 +261,8 @@ topics:
 
 若已有 `vault/topics/<topic>/index.md`，标注“复用既有 topic”。默认把 proposed topic id 同步写入 `approved`，并更新 `vault/topics/<topic>/index.md` 的 approved 关联。
 
+topic 关联数量采用维护者软上限，不在 Viewer 暴露：同一 topic 超过 10 条 approved sessions 时，运行 `npm run audit:topics` 做拆分评估；新 session 收尾前可运行 `npm run audit:topics -- --session vault/sessions/YYYY/MM/<session-id>`。若命中过载 topic，先看 audit 输出中的共同 topic、该 topic 的 `## 待合并 / 待拆分`、以及现有更窄 topic；若更窄 topic 已存在，优先写更窄 topic；若没有稳定归属，可提出新的 flat topic，并同步调整相关 `source.yaml`、`vault/notebooklm/notebooks.yaml` 与 topic index。不要因过载停止本轮处理，也不要把审计信号写进 Viewer health。
+
 更新 topic 索引时，必须做语义合并：
 
 - 先读旧 `index.md` 与本 session 的 `synthesis.md`。
@@ -271,6 +273,7 @@ topics:
 - 不要用“新 session 补充”“某某 session 进一步强调”“本 session 的核心范式”这类来源顺序作为正文结构。
 - 若新材料只是支持既有判断，合并到原观点；若与既有判断冲突，写入分歧或边界；若暂时无法整合，放入 `## 待合并 / 待拆分`，不要把未经消化的段落直接追加到正文。
 - 每个已 approved 该 topic 的 session 都必须出现在 `## 关联 sessions`，否则 build health 会报 `topic_missing_approved_session_reference`。
+- 同一 session 在 `## 关联 sessions` 只保留一条引用；重复引用由 `npm run audit:topics` 检出，先清重复引用，再继续拆分评估。
 
 处理结束前，必须展示已默认批准的 topics。用户若提出疑问、改名、合并、拆分或删除要求，再修订 `source.yaml`、`synthesis.md`、`vault/notebooklm/notebooks.yaml` 与对应 topic 索引。
 
@@ -289,6 +292,7 @@ NotebookLM Pipeline 不默认生成 `publish/website.md`。若内容有公开价
 - `notebooklm/artifacts/` 下的 report、quiz、flashcards、mind map、artifact status；Audio Overview 当前 session 若创建成功，只需有 pending 状态、`source_ids` 和 audio-index 记录；若创建受阻，只写 create-blocked 状态并让 health check 报警，不在同一轮反复重试。旧 pending 被补档为 completed 后，只写 `notebooklm.artifacts.audio.share_url` 与 sharing metadata。
 - `vault/notebooklm/notebooks.yaml`
 - `topics.proposed`、`topics.approved` 与最终回复中的 topic 展示
+- 若命中过载 topic，维护者收尾说明必须列出对应 topic 与已做/待做的关联调整；不写入 Viewer health。
 - 若改动了 session、topic 或 notebook mapping，运行 `npm run build:data`；若改动 Viewer/projection 行为，再运行 `npm run smoke`。
 
 最终回复必须列出实际创建/更新的文件路径。

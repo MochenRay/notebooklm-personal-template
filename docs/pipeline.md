@@ -309,6 +309,8 @@ topics:
 
 默认立即更新 `topics/<topic>/index.md` 的 approved 关联。MVP 每次处理结束都必须展示默认 approved topics；用户提出疑问、改名、合并、拆分或删除要求时，再回写修订结果。
 
+topic 数量上限采用维护者软审计，不在 Viewer 暴露：同一 topic 关联超过 10 条 approved sessions 时，运行 `npm run audit:topics` 判断是否需要拆分评估。新 session 收尾前可运行 `npm run audit:topics -- --session vault/sessions/YYYY/MM/<session-id>`；若命中过载 topic，先查看共同 topic 信号、`## 待合并 / 待拆分` 和既有更窄 topic。若内容更契合窄 topic，优先写入窄 topic；若尚无稳定窄 topic，可提出 1 个新的 flat topic，并同步调整相关 `source.yaml`、`vault/notebooklm/notebooks.yaml` 与 topic index。不要因为 topic 过载而阻塞本轮 pipeline，也不要把审计信号写进 Viewer health。
+
 topic 标题展示规则：
 
 - `vault/topics/<topic-id>/index.md` 的一级标题写中文展示名。
@@ -323,7 +325,7 @@ topic index 更新采用 semantic merge，而不是 append-only session log：
 - 多个 session 共同认可的观点合并写；互相冲突或重心不同的地方写成边界、分歧或适用条件。
 - 不要让每个 session 对应一个正文段落，也不要用“新 session 补充了另一条判断”这类表述组织正文。
 - 暂时无法整合的材料进入 `## 待合并 / 待拆分`，等待后续专门整理。
-- build health 会提醒缺少结构化详情章节、`## 当前理解` 段落数疑似等于 session 数、来源顺序式正文组织，以及 session 已 approved 但 topic index 未列回。
+- build health 会提醒缺少结构化详情章节、`## 当前理解` 段落数疑似等于 session 数、来源顺序式正文组织，以及 session 已 approved 但 topic index 未列回。topic 数量过载和 `## 关联 sessions` 重复引用只用 `npm run audit:topics` 做维护者审计，不暴露到 Viewer。
 
 ## 阶段 9：发布边界
 
@@ -354,6 +356,7 @@ status:
 - `notebooklm/artifacts/` 的 report、quiz、flashcards、mind map、artifact status，以及 audio pending 状态或旧补档后的 share URL。
 - `vault/notebooklm/notebooks.yaml`。
 - topic proposed/approved 状态。
+- 若命中过载 topic，在维护者收尾说明里列出对应 topic 与已做/待做的关联调整；不写入 Viewer health。
 - 若 session、topic 或 notebook mapping 有变化，运行 `npm run build:data` 刷新 `.viewer-data`；如改动影响 Viewer UI 或 projection contract，再运行 `npm run smoke`。
 - 已展示给用户的 approved topics 与后续修订入口。
 
