@@ -90,6 +90,7 @@ type KnowledgeGraphHoverState = {
   nodeIds: Set<string>;
   related: NodeObject<KnowledgeGraphNode>[];
 };
+type KnowledgeGraphLabelMode = "normal" | "selected";
 type KnowledgeGraphBounds = {
   center: {
     x: number;
@@ -614,6 +615,10 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
     [visibleGraphData, visibleSelectedNode?.id],
   );
   const graphRenderState = selectedFocusState.nodeIds.size ? selectedFocusState : hoverState;
+  const graphLabelNodeIds = useMemo(
+    () => buildKnowledgeGraphLabelBudget(visibleGraphData, graphRenderState, selectedId, hoveredId),
+    [graphRenderState, hoveredId, selectedId, visibleGraphData],
+  );
   const selectedFocusKey = useMemo(
     () => [...selectedFocusState.nodeIds].sort().join("|"),
     [selectedFocusState],
@@ -672,6 +677,14 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
     return () => window.clearTimeout(timer);
   }, [graphHeight, graphWidth, selectedFocusKey, selectedFocusState.nodeIds, visibleGraphData.nodes]);
 
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+
+    graph.d3Force("focus-spread", createFocusSpreadForce(selectedFocusState.nodeIds, selectedId));
+    if (selectedFocusState.nodeIds.size) graph.d3ReheatSimulation();
+  }, [selectedFocusKey, selectedFocusState.nodeIds, selectedId]);
+
   const resetGraphSelection = () => {
     setSelectedId(null);
     setHoveredId(null);
@@ -692,11 +705,11 @@ function KnowledgeGraphPanel({ query }: { query: string }) {
               width={graphWidth}
               height={graphHeight}
               backgroundColor="#f7f8f4"
-              nodeCanvasObject={(node, context, globalScale) => drawKnowledgeNode(node, context, globalScale, graphRenderState, hoveredId, selectedId)}
+              nodeCanvasObject={(node, context, globalScale) => drawKnowledgeNode(node, context, globalScale, graphRenderState, graphLabelNodeIds, hoveredId, selectedId)}
               nodePointerAreaPaint={paintKnowledgeNodeHitArea}
               nodeLabel={() => ""}
-              linkColor={(link) => graphLinkColor(link, graphRenderState)}
-              linkWidth={(link) => graphLinkWidth(link, graphRenderState)}
+              linkColor={(link) => graphLinkColor(link, graphRenderState, selectedId)}
+              linkWidth={(link) => graphLinkWidth(link, graphRenderState, selectedId)}
               linkCurvature={graphLinkCurvature}
               linkCanvasObjectMode={(link) => graphLinkFlowCanvasMode(link, graphRenderState)}
               linkCanvasObject={(link, context, globalScale) => drawKnowledgeLinkFlow(link, context, globalScale, graphRenderState)}
@@ -2508,7 +2521,7 @@ function configureKnowledgeGraphForces(
 
   charge?.strength?.((node: NodeObject<KnowledgeGraphNode>) => {
     const degree = Math.max(1, node.count ?? 1);
-    return (node.kind === "session" ? -360 - degree * 18 : -260 - degree * 13) * (0.9 + densityScale * 0.1);
+    return (node.kind === "session" ? -392 - degree * 20 : -286 - degree * 15) * (0.9 + densityScale * 0.1);
   });
   charge?.distanceMin?.(34);
   charge?.distanceMax?.(Math.max(width, height) * 0.9 * densityScale);
@@ -2684,16 +2697,15 @@ function fitKnowledgeGraphFocusViewport(
   if (!bounds) return;
 
   const focusNodeCount = focusNodeIds.size;
-  const padding = clamp(64 + Math.sqrt(focusNodeCount) * 5, 72, 118);
+  const padding = clamp(48 + Math.sqrt(focusNodeCount) * 4.2, 58, 96);
   const availableWidth = Math.max(1, width - padding * 2);
   const availableHeight = Math.max(1, height - padding * 2);
   const fitScale = Math.min(availableWidth / bounds.width, availableHeight / bounds.height);
-  const currentZoom = graph.zoom();
-  const targetScale = Math.max(currentZoom * 1.08, fitScale * 0.82);
-  const maxZoom = Math.max(currentZoom, focusNodeCount <= 2 ? 2.35 : 2.05);
+  const maxZoom = focusNodeCount <= 2 ? 2.65 : focusNodeCount <= 8 ? 2.35 : focusNodeCount <= 18 ? 2.1 : focusNodeCount <= 32 ? 1.85 : 1.62;
+  const targetScale = clamp(fitScale * 0.96, 0.14, maxZoom);
 
   graph.centerAt(bounds.center.x, bounds.center.y, duration);
-  graph.zoom(clamp(targetScale, currentZoom, maxZoom), duration);
+  graph.zoom(targetScale, duration);
 }
 
 function knowledgeTopicSessionPair(
@@ -2714,9 +2726,9 @@ function topicSessionTargetDistance(
 ) {
   const topicDegree = Math.max(1, topic.count ?? 1);
   const sessionDegree = Math.max(1, session.count ?? 1);
-  const base = wide ? 58 : 52;
-  const topicCrowdRadius = Math.sqrt(topicDegree) * (wide ? 12 : 10);
-  const multiTopicSlack = Math.max(0, sessionDegree - 1) * (wide ? 5.5 : 4.5);
+  const base = wide ? 62 : 56;
+  const topicCrowdRadius = Math.sqrt(topicDegree) * (wide ? 13.5 : 11.5);
+  const multiTopicSlack = Math.max(0, sessionDegree - 1) * (wide ? 6.2 : 5);
   return (base + topicCrowdRadius + multiTopicSlack) * (0.94 + densityScale * 0.06);
 }
 
@@ -2772,7 +2784,7 @@ function createTopicSessionAttractionForce(
       const dx = (pair.topic.x ?? 0) - (pair.session.x ?? 0);
       const dy = (pair.topic.y ?? 0) - (pair.session.y ?? 0);
       const distance = Math.hypot(dx, dy) || 1;
-      const desiredDistance = topicSessionTargetDistance(pair.topic, pair.session, wide, densityScale) * 0.82;
+      const desiredDistance = topicSessionTargetDistance(pair.topic, pair.session, wide, densityScale) * 0.9;
       const slack = distance - desiredDistance;
       if (slack <= 0) continue;
 
@@ -2807,7 +2819,7 @@ function createTopicLinkRepulsionForce(
       if (sessionCount <= 1) continue;
 
       const crowdBoost = clamp(sessionCount / 16, 0, 1);
-      const spokeGap = (knowledgeNodeRadius(cluster.topic) + 30 + crowdBoost * 20) * (0.94 + densityScale * 0.06);
+      const spokeGap = (knowledgeNodeRadius(cluster.topic) + 40 + crowdBoost * 24) * (0.94 + densityScale * 0.06);
 
       for (let leftIndex = 0; leftIndex < sessionCount; leftIndex += 1) {
         const left = cluster.sessions[leftIndex];
@@ -2816,10 +2828,10 @@ function createTopicLinkRepulsionForce(
           const dx = (right.x ?? 0) - (left.x ?? 0);
           const dy = (right.y ?? 0) - (left.y ?? 0);
           const distance = Math.hypot(dx, dy) || 1;
-          const minDistance = spokeGap + (knowledgeNodeRadius(left) + knowledgeNodeRadius(right)) * 0.45;
+          const minDistance = spokeGap + (knowledgeNodeRadius(left) + knowledgeNodeRadius(right)) * 0.5;
           if (distance >= minDistance) continue;
 
-          const push = ((minDistance - distance) / distance) * alpha * (0.2 + crowdBoost * 0.08);
+          const push = ((minDistance - distance) / distance) * alpha * (0.24 + crowdBoost * 0.1);
           const offsetX = dx * push;
           const offsetY = dy * push;
           left.vx = (left.vx ?? 0) - offsetX;
@@ -2933,10 +2945,79 @@ function createSoftCollisionForce() {
         const dx = (right.x ?? 0) - (left.x ?? 0);
         const dy = (right.y ?? 0) - (left.y ?? 0);
         const distance = Math.hypot(dx, dy) || 1;
-        const minDistance = knowledgeNodeRadius(left) + knowledgeNodeRadius(right) + 20;
+        const minDistance = knowledgeNodeRadius(left) + knowledgeNodeRadius(right) + 27;
         if (distance >= minDistance) continue;
 
-        const push = ((minDistance - distance) / distance) * alpha * 0.42;
+        const push = ((minDistance - distance) / distance) * alpha * 0.46;
+        const offsetX = dx * push;
+        const offsetY = dy * push;
+        left.vx = (left.vx ?? 0) - offsetX;
+        left.vy = (left.vy ?? 0) - offsetY;
+        right.vx = (right.vx ?? 0) + offsetX;
+        right.vy = (right.vy ?? 0) + offsetY;
+      }
+    }
+  };
+
+  force.initialize = (nodes: NodeObject<KnowledgeGraphNode>[]) => {
+    graphNodes = nodes;
+  };
+
+  return force;
+}
+
+function createFocusSpreadForce(focusNodeIds: Set<string>, selectedId: string | null) {
+  let graphNodes: NodeObject<KnowledgeGraphNode>[] = [];
+  const focusIds = new Set(focusNodeIds);
+
+  const force = (alpha: number) => {
+    if (!selectedId || focusIds.size <= 1) return;
+
+    const focusNodes = graphNodes.filter((node) => focusIds.has(String(node.id)));
+    const selectedNode = focusNodes.find((node) => String(node.id) === selectedId);
+    const crowdBoost = clamp(focusNodes.length / 24, 0, 1);
+
+    if (selectedNode) {
+      const selectedX = selectedNode.x ?? 0;
+      const selectedY = selectedNode.y ?? 0;
+      for (const node of focusNodes) {
+        if (node === selectedNode) continue;
+
+        let dx = (node.x ?? 0) - selectedX;
+        let dy = (node.y ?? 0) - selectedY;
+        let distance = Math.hypot(dx, dy);
+        if (!distance) {
+          const seed = hashUnit(`${node.id}:${selectedId}:focus-spread`);
+          const angle = seed * Math.PI * 2;
+          dx = Math.cos(angle);
+          dy = Math.sin(angle);
+          distance = 1;
+        }
+
+        const desiredDistance = knowledgeNodeRadius(selectedNode) + knowledgeNodeRadius(node) + 66 + crowdBoost * 34;
+        if (distance >= desiredDistance) continue;
+
+        const push = ((desiredDistance - distance) / distance) * alpha * 0.18;
+        const offsetX = dx * push;
+        const offsetY = dy * push;
+        node.vx = (node.vx ?? 0) + offsetX;
+        node.vy = (node.vy ?? 0) + offsetY;
+        selectedNode.vx = (selectedNode.vx ?? 0) - offsetX * 0.08;
+        selectedNode.vy = (selectedNode.vy ?? 0) - offsetY * 0.08;
+      }
+    }
+
+    for (let leftIndex = 0; leftIndex < focusNodes.length; leftIndex += 1) {
+      const left = focusNodes[leftIndex];
+      for (let rightIndex = leftIndex + 1; rightIndex < focusNodes.length; rightIndex += 1) {
+        const right = focusNodes[rightIndex];
+        const dx = (right.x ?? 0) - (left.x ?? 0);
+        const dy = (right.y ?? 0) - (left.y ?? 0);
+        const distance = Math.hypot(dx, dy) || 1;
+        const minDistance = knowledgeNodeRadius(left) + knowledgeNodeRadius(right) + 48 + crowdBoost * 22;
+        if (distance >= minDistance) continue;
+
+        const push = ((minDistance - distance) / distance) * alpha * 0.12;
         const offsetX = dx * push;
         const offsetY = dy * push;
         left.vx = (left.vx ?? 0) - offsetX;
@@ -3078,6 +3159,58 @@ function buildKnowledgeGraphHoverState(
   };
 }
 
+function buildKnowledgeGraphLabelBudget(
+  graphData: GraphData<KnowledgeGraphNode, KnowledgeGraphLink>,
+  focusState: KnowledgeGraphHoverState,
+  selectedId: string | null,
+  hoveredId: string | null,
+) {
+  if (!focusState.nodeIds.size) return new Set<string>();
+
+  const focusNodeIds = focusState.nodeIds;
+  const focusCount = focusNodeIds.size;
+  const labelMode: KnowledgeGraphLabelMode = selectedId ? "selected" : "normal";
+  if (focusCount <= (labelMode === "selected" ? 12 : 9)) return new Set(focusNodeIds);
+
+  const nodeById = new Map(graphData.nodes.map((node) => [String(node.id), node]));
+  const labelIds = new Set<string>();
+  const selectedNode = selectedId ? nodeById.get(selectedId) : null;
+  const hoveredNode = hoveredId ? nodeById.get(hoveredId) : null;
+
+  if (selectedId && focusNodeIds.has(selectedId)) labelIds.add(selectedId);
+  if (hoveredId && focusNodeIds.has(hoveredId)) labelIds.add(hoveredId);
+
+  const labelLimit = labelMode === "selected"
+    ? clamp(9 + Math.floor(Math.sqrt(focusCount)), 10, 14)
+    : clamp(6 + Math.floor(Math.sqrt(focusCount)), 7, 10);
+  const selectedKind = selectedNode?.kind ?? hoveredNode?.kind ?? null;
+  const candidates = graphData.nodes
+    .filter((node) => {
+      const nodeId = String(node.id);
+      return focusNodeIds.has(nodeId) && !labelIds.has(nodeId);
+    })
+    .sort((left, right) => {
+      const leftCounterpart = selectedKind ? Number(left.kind !== selectedKind) : 0;
+      const rightCounterpart = selectedKind ? Number(right.kind !== selectedKind) : 0;
+      if (leftCounterpart !== rightCounterpart) return rightCounterpart - leftCounterpart;
+
+      const countDelta = (right.count ?? 0) - (left.count ?? 0);
+      if (countDelta !== 0) return countDelta;
+
+      const dateDelta = (right.date ?? "").localeCompare(left.date ?? "");
+      if (dateDelta !== 0) return dateDelta;
+
+      return left.label.localeCompare(right.label, "zh-Hans-CN");
+    });
+
+  for (const node of candidates) {
+    if (labelIds.size >= labelLimit) break;
+    labelIds.add(String(node.id));
+  }
+
+  return labelIds;
+}
+
 function graphEndpointId(endpoint: string | number | NodeObject<KnowledgeGraphNode> | undefined) {
   return typeof endpoint === "object" ? String(endpoint.id) : String(endpoint ?? "");
 }
@@ -3091,14 +3224,14 @@ function graphLinkRelated(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLin
   return hoverState.nodeIds.has(graphEndpointId(link.source)) && hoverState.nodeIds.has(graphEndpointId(link.target));
 }
 
-function graphLinkColor(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>, hoverState: KnowledgeGraphHoverState) {
+function graphLinkColor(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>, hoverState: KnowledgeGraphHoverState, selectedId: string | null) {
   if (!hoverState.nodeIds.size) return "rgba(84, 98, 90, 0.16)";
-  return graphLinkRelated(link, hoverState) ? "rgba(26, 124, 78, 0.78)" : "rgba(126, 136, 128, 0.06)";
+  return graphLinkRelated(link, hoverState) ? "rgba(26, 124, 78, 0.78)" : selectedId ? "rgba(126, 136, 128, 0.025)" : "rgba(126, 136, 128, 0.06)";
 }
 
-function graphLinkWidth(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>, hoverState: KnowledgeGraphHoverState) {
+function graphLinkWidth(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>, hoverState: KnowledgeGraphHoverState, selectedId: string | null) {
   if (!hoverState.nodeIds.size) return 0.68;
-  return graphLinkRelated(link, hoverState) ? 1.95 : 0.52;
+  return graphLinkRelated(link, hoverState) ? 1.95 : selectedId ? 0.34 : 0.52;
 }
 
 function graphLinkFlowCanvasMode(link: LinkObject<KnowledgeGraphNode, KnowledgeGraphLink>, hoverState: KnowledgeGraphHoverState) {
@@ -3223,6 +3356,7 @@ function drawKnowledgeNode(
   context: CanvasRenderingContext2D,
   globalScale: number,
   hoverState: KnowledgeGraphHoverState,
+  labelNodeIds: Set<string>,
   hoveredId: string | null,
   selectedId: string | null,
 ) {
@@ -3235,9 +3369,10 @@ function drawKnowledgeNode(
   const isRelated = !isHovering || hoverState.nodeIds.has(nodeId) || selectedId === nodeId;
   const isSelected = selectedId === nodeId;
   const isHovered = hoveredId === nodeId;
+  const dimAlpha = selectedId && isHovering ? 0.08 : 0.22;
 
   context.save();
-  context.globalAlpha = isRelated ? 1 : 0.22;
+  context.globalAlpha = isRelated ? 1 : dimAlpha;
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.fillStyle = isTopic ? "#2fac69" : "#8fa0b3";
@@ -3262,7 +3397,7 @@ function drawKnowledgeNode(
   }
   context.restore();
 
-  if (isHovering && isRelated) {
+  if (isHovering && isRelated && labelNodeIds.has(nodeId)) {
     drawKnowledgeNodeLabel(node, context, globalScale, radius, isSelected || isHovered);
   }
 }
